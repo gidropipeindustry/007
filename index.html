@@ -157,7 +157,7 @@
   .sum-row .v.plus{color:var(--plus);} .sum-row .v.minus{color:var(--minus);} .sum-row .v.gold{color:var(--gold);}
   .feed h2{font-size:13px; color:var(--muted); margin:0 0 10px 2px; text-transform:uppercase; letter-spacing:.5px;}
   .op-item{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
-  .op-item .op-left{flex:1 1 auto; min-width:0;}
+  .op-item .op-left{flex:1 1 0; min-width:0;}
   .op-item .op-amt{flex:0 0 auto; white-space:nowrap;}
   .op-item:last-child{border-bottom:none;}
   .op-left .nm{font-size:14px; font-weight:600;}
@@ -228,6 +228,16 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:150;
     box-shadow:0 6px 20px rgba(0,0,0,.5);}
   .refresh-fab:active{background:var(--card); transform:scale(.94);}
+  /* v11: индикация сетевой активности */
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes netslide{0%{left:-40%;}100%{left:100%;}}
+  #netbar{position:fixed; top:env(safe-area-inset-top,0px); left:0; right:0; height:3px; z-index:998; pointer-events:none; display:none;}
+  #netbar i{position:absolute; top:0; height:3px; width:40%; background:var(--accent); border-radius:2px; animation:netslide 1s linear infinite;}
+  body.busy #netbar{display:block;}
+  body.busy .refresh-fab{animation:spin .8s linear infinite; pointer-events:none; opacity:.6;}
+  .btn-busy{pointer-events:none; opacity:.55;}
+  .ac-item .apx{color:var(--muted); margin-right:5px;}
+  .ac-warn{padding:12px; font-size:13px; color:#e5c07b;}
   .loading{text-align:center; color:var(--muted); padding:20px; font-size:13px;}
 </style>
 </head>
@@ -255,7 +265,7 @@
       <div class="field" id="mUsdToggleField">
         <div class="usd-row"><span data-i18n="usdQ">Доллар $ бор?</span><label class="switch"><input type="checkbox" id="mUsdSwitch" onchange="mToggleUsd()"><span class="slider"></span></label></div>
       </div>
-      <div class="field hidden" id="mUsdField"><div class="row2"><div><label data-i18n="lblUsd">Доллар $</label><input type="text" id="mUsd" class="money" placeholder="0" inputmode="numeric" oninput="mUsdCalc()"></div><div><label data-i18n="lblRate">Курс</label><input type="text" id="mUsdRate" placeholder="0" inputmode="decimal" oninput="mUsdCalc()"></div></div><div style="margin-top:10px;"><label data-i18n="lblRubFact">Рубль (факт)</label><input type="text" id="mUsdRub" class="money" placeholder="0" inputmode="numeric" oninput="mUsdRubEdit()"></div><div class="fact-hint" id="mUsdHint" data-i18n="musdHint"></div></div>
+      <div class="field hidden" id="mUsdField"><div class="row2"><div><label data-i18n="lblUsd">Доллар $</label><input type="text" id="mUsd" class="money" placeholder="0" inputmode="numeric" oninput="mUsdCalc('U')"></div><div><label data-i18n="lblRate">Курс</label><input type="text" id="mUsdRate" placeholder="0" inputmode="decimal" oninput="mUsdCalc('R')"></div></div><div style="margin-top:10px;"><label data-i18n="lblRubFact">Рубль (факт)</label><input type="text" id="mUsdRub" class="money" placeholder="0" inputmode="numeric" oninput="mUsdRubEdit()"></div><div class="fact-hint" id="mUsdHint" data-i18n="musdHint"></div></div>
       <div class="field hidden" id="mExchField">
         <div class="exch">
           <div class="dir-row"><div class="dir-btn sel" id="mDirUR" onclick="mDir('UR')">$ → ₽</div><div class="dir-btn" id="mDirRU" onclick="mDir('RU')">₽ → $</div></div>
@@ -305,8 +315,8 @@
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="uPhone" inputmode="tel" placeholder="+998 90 123 45 67"></div>
       <div class="field"><label data-i18n="lblNote">Изоҳ</label><input type="text" id="uMemo" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="row2">
-        <div class="field"><label id="uUsdLbl" data-i18n="lblUsd">Доллар $</label><input type="text" id="uUsd" class="money" placeholder="0" inputmode="numeric" oninput="uCalc()"></div>
-        <div class="field"><label data-i18n="lblRate">Курс</label><input type="text" id="uRate" placeholder="0" inputmode="decimal" oninput="uCalc()"></div>
+        <div class="field"><label id="uUsdLbl" data-i18n="lblUsd">Доллар $</label><input type="text" id="uUsd" class="money" placeholder="0" inputmode="numeric" oninput="uCalc('U')"></div>
+        <div class="field"><label data-i18n="lblRate">Курс</label><input type="text" id="uRate" placeholder="0" inputmode="decimal" oninput="uCalc('R')"></div>
       </div>
       <div class="field"><label data-i18n="lblRubFact">Рубль (фактик)</label><input type="text" id="uRub" class="money" placeholder="0" inputmode="numeric" oninput="uRubEdit()"><div class="fact-hint" id="uHint" data-i18n="hintUsdRate">Доллар ва курсни киритинг — рубль таклиф этилади.</div></div>
       <div class="calc-box"><div id="uCalcBox" style="font-size:13px;color:var(--muted)" data-i18n="calcEmpty">Амал танланг, доллар ва курс киритинг</div></div>
@@ -346,8 +356,8 @@
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="gPhone" inputmode="tel" data-i18n-ph="phPhone" placeholder="телефон"></div>
       <div class="field"><label data-i18n="lblNote">Изоҳ</label><input type="text" id="gMemo" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="row2">
-        <div class="field"><label id="gUsdLbl" data-i18n="lblUsd">Доллар $</label><input type="text" id="gUsdIn" class="money" placeholder="0" inputmode="numeric" oninput="gCalc()"></div>
-        <div class="field"><label data-i18n="lblRate">Курс</label><input type="text" id="gRate" placeholder="0" inputmode="decimal" oninput="gCalc()"></div>
+        <div class="field"><label id="gUsdLbl" data-i18n="lblUsd">Доллар $</label><input type="text" id="gUsdIn" class="money" placeholder="0" inputmode="numeric" oninput="gCalc('U')"></div>
+        <div class="field"><label data-i18n="lblRate">Курс</label><input type="text" id="gRate" placeholder="0" inputmode="decimal" oninput="gCalc('R')"></div>
       </div>
       <div class="field"><label data-i18n="lblRubFact">Рубль (фактик)</label><input type="text" id="gRub" class="money" placeholder="0" inputmode="numeric" oninput="gRubEdit()"><div class="fact-hint" id="gHint" data-i18n="hintUsdRate">Доллар ва курсни киритинг — рубль таклиф этилади.</div></div>
       <div class="calc-box"><div id="gCalcBox" style="font-size:13px;color:var(--muted)" data-i18n="calcEmpty">Амал танланг, доллар ва курс киритинг</div></div>
@@ -605,6 +615,7 @@
   <div id="curOpts" style="display:flex; flex-direction:column; gap:8px; margin:14px 0 4px;"></div>
   <div class="btns"><button class="no" id="curCancel" data-i18n="no" style="flex:1;">Йўқ</button></div></div></div>
 <div class="toast" id="toast"></div>
+<div id="netbar"><i></i></div>
 <div class="refresh-fab" onclick="appReload()" title="Янгилаш">⟳</div>
 <script>
   /* ===== КОНФИГ + ХЕЛПЕР apiCall ===== */
@@ -616,6 +627,7 @@
     yes:'Да', no:'Нет', save:'Сохранить', saved:'Сохранено', err:'Ошибка', connLost:'Нет связи',
     loading:'Загрузка…', refreshed:'Обновлено', copy:'Копия', copied:'Скопировано', copyFail:'Не скопировалось',
     none:'Нет', newClientBtn:'+ Новый клиент', newClientQ:'Новый клиент «{n}»?', clientAdded:'Клиент добавлен',
+    dupWarn:'В базе есть похожий — выберите его:', dupCreate:'+ Всё равно создать нового',
     clientExists:'Такой клиент уже есть', enterNameFirst:'Сначала введите имя',
     pickAction:'Выберите действие', pickClient:'Выберите клиента', enterSum:'Введите сумму',
     enterUsd:'Введите доллары', enterRub:'Введите рубли', enterRate:'Введите курс сделки',
@@ -705,6 +717,7 @@
     yes:'Ҳа', no:'Йўқ', save:'Сақлаш', saved:'Сақланди', err:'Хато', connLost:'Алоқа узилди',
     loading:'Юкланмоқда…', refreshed:'Янгиланди', copy:'Нусха', copied:'Нусха олинди', copyFail:'Нусха олинмади',
     none:'Йўқ', newClientBtn:'+ Янги мижоз', newClientQ:'Янги мижоз «{n}»?', clientAdded:'Мижоз қўшилди',
+    dupWarn:'Базада ўхшаш мижоз бор — уни танланг:', dupCreate:'+ Барибир янги яратиш',
     clientExists:'Бундай мижоз бор', enterNameFirst:'Аввал исм киритинг',
     pickAction:'Амал танланг', pickClient:'Мижозни танланг', enterSum:'Сумма киритинг',
     enterUsd:'Доллар киритинг', enterRub:'Рубль киритинг', enterRate:'Сделка курсини киритинг',
@@ -801,13 +814,24 @@
   }
   function setLang(l){ if(l===LANG) return; localStorage.setItem('kassa_lang',l); location.reload(); }
   var API_URL='https://script.google.com/macros/s/AKfycbw9xLU2d0_38dbVl2v7afk2CKn0JaJcVbPICYFtqJzYEBUbuxVPICqf5P-71Pn2KGRGCA/exec';
+  var _net=0, _reloadWait=false;
+  function netStart(){ _net++; if(document.body) document.body.classList.add('busy'); }
+  function netEnd(){
+    _net=Math.max(0,_net-1);
+    if(!_net){
+      if(document.body) document.body.classList.remove('busy');
+      if(_reloadWait){ _reloadWait=false; toast(t('refreshed')); }
+    }
+  }
   function apiCall(action,args,token){
+    netStart();
     return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:action,token:token||'',args:args||{}})}).then(function(r){return r.json();})
       .then(function(res){
         if(res&&res.error==='Сессия недействительна'&&action!=='checkLogin'){ logout(); }
+        netEnd();
         return res;
-      });
+      }).catch(function(err){ netEnd(); throw err; });
   }
   var AUTH_TOKEN=localStorage.getItem('kassa_token')||'';
   var USER_ROLE=localStorage.getItem('kassa_role')||'';
@@ -867,13 +891,42 @@
   function moneyVal(id){var el=document.getElementById(id); if(!el)return 0; var d=el.value.replace(/\D/g,''); return d?parseInt(d,10):0;}
   document.addEventListener('input',function(e){ if(e.target.classList&&e.target.classList.contains('money')) moneyFormat(e.target); });
 
+  /* свёртка написания: баходир==боходир, шухрат==шуҳрат, кобилжон==қобилжон */
+  function fold(s){
+    return String(s||'').toLowerCase()
+      .replace(/[ъь’']/g,'')
+      .replace(/[оа]/g,'а')
+      .replace(/[хҳ]/g,'х')
+      .replace(/қ/g,'к')
+      .replace(/ғ/g,'г')
+      .replace(/[уў]/g,'у')
+      .replace(/ё/g,'е')
+      .replace(/й/g,'и')
+      .replace(/\s+/g,' ').trim();
+  }
+  function dbFold(c){ if(c._f===undefined) c._f=fold(c.name); return c._f; }
+  function acRow(c,inpId,listId,approx){
+    var td=TODAY_SET[c.name]?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:7px;vertical-align:middle;"></span>':'';
+    return '<div class="ac-item" data-n="'+esc(c.name)+'" onclick="acPick(\''+inpId+'\',\''+listId+'\',this)">'+
+           td+(approx?'<span class="apx">≈</span>':'')+esc(c.name)+'</div>';
+  }
   function acInput(inpId,listId){
-    var q=document.getElementById(inpId).value.trim().toLowerCase(); var list=document.getElementById(listId);
+    var raw=document.getElementById(inpId).value.trim();
+    var q=raw.toLowerCase(); var list=document.getElementById(listId);
     if(q.length<1){list.classList.remove('open'); list.innerHTML=''; return;}
-    var hits=DB.filter(function(c){return c.name.toLowerCase().indexOf(q)>-1;}).slice(0,8);
-    var html=''; hits.forEach(function(c){ var td=TODAY_SET[c.name]?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:7px;vertical-align:middle;"></span>':'';
-      html+='<div class="ac-item" data-n="'+esc(c.name)+'" onclick="acPick(\''+inpId+'\',\''+listId+'\',this)">'+td+esc(c.name)+'</div>'; });
-    if(hits.length===0) html+='<div class="ac-empty">'+t('none')+'</div>';
+    var qf=fold(raw);
+    var hStart=[], hIn=[], hSoft=[];
+    for(var i=0;i<DB.length;i++){
+      var c=DB[i], p=c.name.toLowerCase().indexOf(q);
+      if(p===0) hStart.push(c);
+      else if(p>0) hIn.push(c);
+      else if(qf && dbFold(c).indexOf(qf)>-1) hSoft.push(c);
+    }
+    var html='', shown=0, LIM=15;
+    var strict=hStart.concat(hIn);
+    for(var a=0;a<strict.length&&shown<LIM;a++){ html+=acRow(strict[a],inpId,listId,false); shown++; }
+    for(var b=0;b<hSoft.length&&shown<LIM;b++){ html+=acRow(hSoft[b],inpId,listId,true); shown++; }
+    if(shown===0) html+='<div class="ac-empty">'+t('none')+'</div>';
     html+='<div class="ac-item add" onclick="acAdd(\''+inpId+'\',\''+listId+'\')">'+t('newClientBtn')+'</div>';
     list.innerHTML=html; list.classList.add('open');
   }
@@ -881,13 +934,34 @@
   function acAdd(inpId,listId){
     var n=document.getElementById(inpId).value.trim(); document.getElementById(listId).classList.remove('open');
     if(!n){toast(t('enterNameFirst'),true); return;}
-    askConfirm(t('newClientQ',{n:n}), function(){
-      apiCall('addClient',{name:n},AUTH_TOKEN).then(function(res){
-        if(res.ok){DB.push({name:res.name,phone:'',reg:''}); toast(t('clientAdded'));}
-        else if(res.exists){toast(t('clientExists'));}
-        else toast(res.error||t('err'),true);
-      });
-    }, 'uz');
+    // похожие по написанию (баходир/боходир) -> предупредить ДО создания
+    var nf=fold(n), sim=[];
+    for(var i=0;i<DB.length&&sim.length<6;i++){
+      var f=dbFold(DB[i]);
+      if(f && (f===nf || f.indexOf(nf)>-1 || nf.indexOf(f)>-1)) sim.push(DB[i]);
+    }
+    if(sim.length){
+      var list=document.getElementById(listId);
+      var html='<div class="ac-warn">'+t('dupWarn')+'</div>';
+      for(var s=0;s<sim.length;s++) html+=acRow(sim[s],inpId,listId,true);
+      html+='<div class="ac-item add" onclick="acForceAdd(\''+inpId+'\',\''+listId+'\')">'+t('dupCreate')+'</div>';
+      list.innerHTML=html; list.classList.add('open');
+      return;
+    }
+    askConfirm(t('newClientQ',{n:n}), function(){ acDoAdd(n); }, 'uz');
+  }
+  function acForceAdd(inpId,listId){
+    var n=document.getElementById(inpId).value.trim();
+    document.getElementById(listId).classList.remove('open');
+    if(!n){toast(t('enterNameFirst'),true); return;}
+    askConfirm(t('newClientQ',{n:n}), function(){ acDoAdd(n); }, 'uz');
+  }
+  function acDoAdd(n){
+    apiCall('addClient',{name:n},AUTH_TOKEN).then(function(res){
+      if(res.ok){DB.push({name:res.name,phone:'',reg:''}); toast(t('clientAdded'));}
+      else if(res.exists){toast(t('clientExists'));}
+      else toast(res.error||t('err'),true);
+    });
   }
 
   /* Олдим/Бердим -> человеческое слово (только отображение; в таблице как было) */
@@ -926,9 +1000,9 @@
       });
       name = vis[0] || 'moscow';
     }
+    _reloadWait=true;  // тост — когда запросы реально завершатся
     refreshDB(true);   // список клиентов тоже освежаем
     showScreen(name);
-    toast(t('refreshed'));
   }
   function toast(msg,isErr){var t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(function(){t.className='toast';},2500);}
   function showOk(title,det){var c=document.getElementById('okCard'); c.innerHTML='✓ '+title+(det?'<span class="det">'+det+'</span>':''); var w=document.getElementById('okCenter'); w.className='ok-center show'; clearTimeout(w._t); w._t=setTimeout(function(){w.className='ok-center';},2500);}
@@ -975,23 +1049,36 @@
     // либо доллары, либо рубли: при $ рублёвое поле прячем и чистим
     document.getElementById('mRubField').classList.toggle('hidden',on);
     if(on){document.getElementById('mRub').value='';}
-    else{document.getElementById('mUsd').value=''; document.getElementById('mUsdRate').value=''; document.getElementById('mUsdRub').value=''; mUsdRubEdited=false;}
+    else{document.getElementById('mUsd').value=''; document.getElementById('mUsdRate').value=''; document.getElementById('mUsdRub').value=''; mUsdTouch=[];}
   }
-  /* $-операция клиенту: рубль (факт) = usd×курс, редактируемый — как в регионах */
-  var mUsdRubEdited=false;
-  function mUsdCalc(){
-    var usd=moneyVal('mUsd'), rate=parseFloat(String(document.getElementById('mUsdRate').value).replace(',','.'))||0;
-    if(!mUsdRubEdited){var ri=document.getElementById('mUsdRub'); if(usd>0&&rate>0) ri.value=Math.round(usd*rate).toLocaleString('ru-RU'); else ri.value='';}
+  /* $-операция клиенту: три связанных поля (U доллар / R курс / B рубль-факт).
+     Два последних тронутых — источники, третье пересчитывается.
+     В поле курса — 2 знака, полный курс виден в подсказке. */
+  var mUsdTouch=[];
+  function mUsdTouchPush(k){ mUsdTouch=mUsdTouch.filter(function(x){return x!==k;}); mUsdTouch.push(k); if(mUsdTouch.length>2) mUsdTouch.shift(); }
+  function mUsdCalc(k){
+    if(k) mUsdTouchPush(k);
+    var uEl=document.getElementById('mUsd'), rEl=document.getElementById('mUsdRate'), bEl=document.getElementById('mUsdRub');
+    var usd=moneyVal('mUsd'), rub=moneyVal('mUsdRub');
+    var rate=parseFloat(String(rEl.value).replace(',','.'))||0;
+    var target=(mUsdTouch.length===2)?['U','R','B'].filter(function(x){return mUsdTouch.indexOf(x)===-1;})[0]:'B';
+    if(target==='B'){
+      if(usd>0&&rate>0) bEl.value=Math.round(usd*rate).toLocaleString('ru-RU');
+      else if(mUsdTouch.indexOf('B')===-1) bEl.value='';
+    } else if(target==='R'){
+      if(usd>0&&rub>0) rEl.value=String(Math.round((rub/usd)*100)/100).replace('.',',');
+    } else {
+      if(rate>0&&rub>0) uEl.value=Math.round(rub/rate).toLocaleString('ru-RU');
+    }
     mUsdHintUpd();
   }
-  function mUsdRubEdit(){mUsdRubEdited=true; mUsdHintUpd();}
+  function mUsdRubEdit(){ mUsdCalc('B'); }
   function mUsdHintUpd(){
     var usd=moneyVal('mUsd'), rate=parseFloat(String(document.getElementById('mUsdRate').value).replace(',','.'))||0, rub=moneyVal('mUsdRub');
     var h=document.getElementById('mUsdHint');
     if(usd>0&&rub>0){
       var eff=rub/usd, effTxt='≈ '+t('rate')+' '+(Math.round(eff*1e6)/1e6).toString().replace('.',',');
-      if(!mUsdRubEdited&&rate>0) h.textContent=t('suggest')+usd+' × '+String(rate).replace('.',',')+' = '+fmt(usd*rate)+' ₽ · '+effTxt;
-      else h.innerHTML='<span class="ed">'+effTxt+'</span> · '+t('toAccount')+' '+fmt(rub)+' ₽';
+      h.innerHTML='<span class="ed">'+effTxt+'</span> · '+t('toAccount')+' '+fmt(rub)+' ₽';
     } else if(usd>0&&rate>0) h.textContent=t('suggest')+usd+' × '+String(rate).replace('.',',')+' = '+fmt(usd*rate)+' ₽';
     else h.textContent=t('musdHint');
   }
@@ -1054,7 +1141,7 @@
   function mReset(){
     document.querySelectorAll('#scr-moscow .act-btn').forEach(function(b){b.classList.remove('sel');}); mAction=null;
     ['mName','mRub','mUsd','mUsdRate','mUsdRub','mNote','mExA','mExB','mRate','mOpDate'].forEach(function(id){var e=document.getElementById(id); if(e)e.value='';});
-    document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdRubEdited=false; mExTouch=[];
+    document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdTouch=[]; mExTouch=[];
     document.getElementById('mNameField').classList.remove('hidden'); document.getElementById('mRubField').classList.remove('hidden');
     document.getElementById('mUsdToggleField').classList.remove('hidden'); document.getElementById('mExchField').classList.add('hidden'); mCalcRate();
   }
@@ -1192,26 +1279,38 @@
   }
   /* ===== общий движок региона (используют Узбекистан и Регионы) ===== */
   function makeRegionEngine(pfx, getRegionName){
-    var st={action:null,rubEdited:false,lastKey:'',lastTime:0,avg:0};
+    var st={action:null,touch:[],lastKey:'',lastTime:0,avg:0};
     function id(s){return document.getElementById(pfx+s);}
     function pick(el,a){var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); el.classList.add('sel'); st.action=a; calc();}
-    function calc(){
-      var usd=moneyVal(pfx+'Usd'+(pfx==='g'?'In':'')); var rate=parseFloat(String(id('Rate').value).replace(',','.'))||0;
-      if(!st.rubEdited){var ri=id('Rub'); if(usd>0&&rate>0) ri.value=Math.round(usd*rate).toLocaleString('ru-RU'); else ri.value='';}
+    /* три связанных поля: U доллар / R курс / B рубль-факт.
+       Два последних тронутых — источники, третье пересчитывается. */
+    function touch(k){ st.touch=st.touch.filter(function(x){return x!==k;}); st.touch.push(k); if(st.touch.length>2) st.touch.shift(); }
+    function calc(k){
+      if(k) touch(k);
+      var uId=pfx+'Usd'+(pfx==='g'?'In':'');
+      var usd=moneyVal(uId), rub=moneyVal(pfx+'Rub');
+      var rEl=id('Rate'); var rate=parseFloat(String(rEl.value).replace(',','.'))||0;
+      var target=(st.touch.length===2)?['U','R','B'].filter(function(x){return st.touch.indexOf(x)===-1;})[0]:'B';
+      if(target==='B'){
+        var ri=id('Rub');
+        if(usd>0&&rate>0) ri.value=Math.round(usd*rate).toLocaleString('ru-RU');
+        else if(st.touch.indexOf('B')===-1) ri.value='';
+      } else if(target==='R'){
+        if(usd>0&&rub>0) rEl.value=String(Math.round((rub/usd)*100)/100).replace('.',',');
+      } else {
+        var ue=document.getElementById(uId);
+        if(ue&&rate>0&&rub>0) ue.value=Math.round(rub/rate).toLocaleString('ru-RU');
+      }
       hint(); render();
     }
-    function rubEdit(){st.rubEdited=true; moneyFormat(id('Rub')); hint(); render();}
+    function rubEdit(){ moneyFormat(id('Rub')); calc('B'); }
     function hint(){
       var usd=moneyVal(pfx+'Usd'+(pfx==='g'?'In':'')),rate=parseFloat(String(id('Rate').value).replace(',','.'))||0,rub=moneyVal(pfx+'Rub');
       var h=id('Hint');
       if(usd>0&&rub>0){
         var eff=rub/usd;
         var effTxt='≈ курс '+(Math.round(eff*1e6)/1e6).toString().replace('.',',');
-        if(!st.rubEdited&&rate>0){
-          h.textContent=t('suggest')+usd+' × '+String(rate).replace('.',',')+' = '+fmt(usd*rate)+' ₽  ·  '+effTxt;
-        } else {
-          h.innerHTML='<span class="ed">'+effTxt+'</span>  ·  '+t('toAccount')+' '+fmt(rub)+' ₽';
-        }
+        h.innerHTML='<span class="ed">'+effTxt+'</span>  ·  '+t('toAccount')+' '+fmt(rub)+' ₽';
       } else if(usd>0&&rate>0){
         h.textContent=t('suggest')+usd+' × '+String(rate).replace('.',',')+' = '+fmt(usd*rate)+' ₽.';
       } else h.textContent=t('hintUsdRateEnter');
@@ -1269,7 +1368,7 @@
     }
 
     function reset(){
-      var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.rubEdited=false;
+      var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.touch=[];
       ['Name','Usd'+(pfx==='g'?'In':''),'Rate','Rub','ToWhom','Phone','Memo','OpDate'].forEach(function(s){var e=id(s); if(e)e.value='';});
       id('CalcBox').innerHTML=t('calcEmpty'); hint();
     }
@@ -1385,7 +1484,7 @@
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region'));
       p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');});
       var ab=p.querySelector('.act-btn.'+act); if(ab) ab.classList.add('sel');
-      st.action=act; st.rubEdited=false;
+      st.action=act; st.touch=[];
       id('Name').value=data.name||'';
       id('Usd'+(pfx==='g'?'In':'')).value=data.usd?Math.abs(Number(data.usd)).toLocaleString('ru-RU'):'';
       id('Rate').value=data.rate?String(data.rate).replace('.',','):'';
@@ -1401,7 +1500,7 @@
 
   /* Узбекистан — регион фиксированный */
   var UZB=makeRegionEngine('u',function(){return 'Узбекистан';});
-  function uPick(el,a){UZB.pick(el,a);} function uCalc(){UZB.calc();} function uRubEdit(){UZB.rubEdit();}
+  function uPick(el,a){UZB.pick(el,a);} function uCalc(k){UZB.calc(k);} function uRubEdit(){UZB.rubEdit();}
   function uSubmit(){UZB.submit();} function uRefreshBalance(){UZB.refreshBalance();} function uRefreshFeed(){UZB.refreshFeed();} function uLoadReq(){UZB.loadReq();}
   function uApply(res){
       var b=res.balance||{};
@@ -1430,7 +1529,7 @@
   /* Регионы — регион выбирается */
   var gCurRegion='';
   var REG=makeRegionEngine('g',function(){return gCurRegion;});
-  function gPick(el,a){REG.pick(el,a);} function gCalc(){REG.calc();} function gRubEdit(){REG.rubEdit();}
+  function gPick(el,a){REG.pick(el,a);} function gCalc(k){REG.calc(k);} function gRubEdit(){REG.rubEdit();}
   function gSubmit(){REG.submit();}
   function gApplyCached(res){
     if(res.regions){
@@ -1543,13 +1642,18 @@
   function execAllRequests(region){
     if(!region){ toast(t('pickRegion'),true); return; }
     askConfirm(t('execAllQ',{r:region}), function(){
+      var b=document.getElementById(region==='Узбекистан'?'uExecAllBtn':'gExecAllBtn');
+      var sp=b?b.querySelector('span'):null, old=sp?sp.textContent:'';
+      if(b){ b.classList.add('btn-busy'); if(sp) sp.textContent='…'; }
+      function unlock(){ if(b){ b.classList.remove('btn-busy'); if(sp) sp.textContent=old; } }
       apiCall('executeAllRequests',{region:region},AUTH_TOKEN).then(function(res){
+        unlock();
         if(res.ok){
           showOk(t('doneBtn'), (res.count||0)+' '+t('pcs'));
           if(region==='Узбекистан'){UZB.afterSave();}
           else{REG.afterSave();}
         } else toast(res.error||t('err'),true);
-      }).catch(function(){ toast(t('connLost'),true); });
+      }).catch(function(){ unlock(); toast(t('connLost'),true); });
     }, 'uz');
   }
   // показать кнопку «выполнить все» только для admin/operator2
@@ -2541,7 +2645,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 10;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
+  var APP_VERSION = 11;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
   (function(){
     // номер версии внизу экрана (для сверки глазами); bottom:74px — чтобы не прятался под кнопкой ⟳
     var v=document.createElement('div');
@@ -2742,8 +2846,26 @@
     _dbLast=now;
     apiCall('getClients',{},AUTH_TOKEN).then(function(list){ if(list&&list.length) DB=list; });
   }
-  refreshDB(true);
-  curLoad();
+  /* ФАЗА 2: прогрев остальных экранов одним фоновым вызовом.
+     Москву не трогаем — её грузит фаза 1 (mOpen -> openMoscow). */
+  function bootWarm(){
+    apiCall('openApp',{},AUTH_TOKEN).then(function(res){
+      if(!res||!res.ok){ curLoad(); return; }
+      if(res.clients&&res.clients.length) DB=res.clients;
+      if(res.currencyMap&&typeof res.currencyMap==='object') CUR=res.currencyMap;
+      if(res.uzb&&res.uzb.ok) cPut('uzb',res.uzb);
+      if(res.region&&res.region.ok&&res.region.region) cPut('reg_'+res.region.region,res.region);
+      if(res.overview&&res.overview.ok) OV_DATA=res.overview;
+      if(res.clientsBalance&&res.clientsBalance.ok){
+        BAL_DATA=res.clientsBalance.items||[];
+        var tp=document.getElementById('balTotalPlus'), tm=document.getElementById('balTotalMinus');
+        if(tp) tp.textContent=fmt(res.clientsBalance.totalPlus)+' ₽';
+        if(tm) tm.textContent=fmt(res.clientsBalance.totalMinus)+' ₽';
+      }
+    }).catch(function(){ curLoad(); });
+  }
+  refreshDB(true);              // фаза 1: клиенты нужны сразу
+  setTimeout(bootWarm, 1500);   // фаза 2: после первой отрисовки Москвы
   applyI18n();
   buildTabs();
 </script>

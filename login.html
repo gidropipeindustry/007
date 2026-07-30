@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
@@ -10,7 +10,7 @@
 <meta name="theme-color" content="#0f1115">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg">
-<title>Касса — Кириш</title>
+<title>Касса — Вход</title>
 <style>
   :root{--bg:#0f1115;--card:#181b22;--card2:#1f232c;--line:#2b3038;--txt:#e8eaed;--muted:#8b919c;--accent:#3ddc84;--minus:#ff6b6b;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -30,11 +30,11 @@
 <body>
 <div class="box">
   <h1>Касса</h1>
-  <div class="sub">Тизимга кириш</div>
+  <div class="sub">Вход в систему</div>
   <form id="loginForm" onsubmit="return false;" action="#" method="post">
     <div class="field"><label>Логин</label><input type="text" id="login" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="логин"></div>
-    <div class="field"><label>Парол</label><input type="password" id="pass" name="password" autocomplete="current-password" placeholder="парол"></div>
-    <button class="btn" id="btn" type="submit">Кириш</button>
+    <div class="field"><label>Пароль</label><input type="password" id="pass" name="password" autocomplete="current-password" placeholder="пароль"></div>
+    <button class="btn" id="btn" type="submit">Войти</button>
   </form>
   <div class="err" id="err"></div>
 </div>
@@ -58,7 +58,7 @@
     var pass=document.getElementById('pass').value.trim();
     var err=document.getElementById('err'); err.textContent='';
     if(!login||!pass){ err.textContent='Введите логин и пароль'; return; }
-    var btn=document.getElementById('btn'); btn.disabled=true; btn.textContent='Кирилмоқда…';
+    var btn=document.getElementById('btn'); btn.disabled=true; btn.textContent='Вход…';
     apiCall('checkLogin',{login:login,password:pass},'').then(function(res){
       if(res&&res.ok){
         localStorage.setItem('kassa_token',res.token);
@@ -66,12 +66,12 @@
         localStorage.setItem('kassa_name',res.name||'');
         location.href='index.html';
       } else {
-        btn.disabled=false; btn.textContent='Кириш';
-        err.textContent=(res&&res.error)||'Хато';
+        btn.disabled=false; btn.textContent='Войти';
+        err.textContent=(res&&res.error)||'Ошибка';
       }
     }).catch(function(){
-      btn.disabled=false; btn.textContent='Кириш';
-      err.textContent='Алоқа узилди';
+      btn.disabled=false; btn.textContent='Войти';
+      err.textContent='Связь потеряна';
     });
   }
 </script>

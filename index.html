@@ -1049,26 +1049,22 @@
     // либо доллары, либо рубли: при $ рублёвое поле прячем и чистим
     document.getElementById('mRubField').classList.toggle('hidden',on);
     if(on){document.getElementById('mRub').value='';}
-    else{document.getElementById('mUsd').value=''; document.getElementById('mUsdRate').value=''; document.getElementById('mUsdRub').value=''; mUsdTouch=[];}
+    else{document.getElementById('mUsd').value=''; document.getElementById('mUsdRate').value=''; document.getElementById('mUsdRub').value=''; mUsdLast='';}
   }
   /* $-операция клиенту: три связанных поля (U доллар / R курс / B рубль-факт).
      Два последних тронутых — источники, третье пересчитывается.
      В поле курса — 2 знака, полный курс виден в подсказке. */
-  var mUsdTouch=[];
-  function mUsdTouchPush(k){ mUsdTouch=mUsdTouch.filter(function(x){return x!==k;}); mUsdTouch.push(k); if(mUsdTouch.length>2) mUsdTouch.shift(); }
+  var mUsdLast='';
   function mUsdCalc(k){
-    if(k) mUsdTouchPush(k);
-    var uEl=document.getElementById('mUsd'), rEl=document.getElementById('mUsdRate'), bEl=document.getElementById('mUsdRub');
+    if(k) mUsdLast=k;
+    var rEl=document.getElementById('mUsdRate'), bEl=document.getElementById('mUsdRub');
     var usd=moneyVal('mUsd'), rub=moneyVal('mUsdRub');
     var rate=parseFloat(String(rEl.value).replace(',','.'))||0;
-    var target=(mUsdTouch.length===2)?['U','R','B'].filter(function(x){return mUsdTouch.indexOf(x)===-1;})[0]:'B';
-    if(target==='B'){
-      if(usd>0&&rate>0) bEl.value=Math.round(usd*rate).toLocaleString('ru-RU');
-      else if(mUsdTouch.indexOf('B')===-1) bEl.value='';
-    } else if(target==='R'){
+    if(mUsdLast==='B'){                 // правили рубли -> курс подстраивается (2 знака)
       if(usd>0&&rub>0) rEl.value=String(Math.round((rub/usd)*100)/100).replace('.',',');
-    } else {
-      if(rate>0&&rub>0) uEl.value=Math.round(rub/rate).toLocaleString('ru-RU');
+    } else {                            // правили $ или курс -> пересчитываются рубли
+      if(usd>0&&rate>0) bEl.value=Math.round(usd*rate).toLocaleString('ru-RU');
+      else bEl.value='';
     }
     mUsdHintUpd();
   }
@@ -1141,7 +1137,7 @@
   function mReset(){
     document.querySelectorAll('#scr-moscow .act-btn').forEach(function(b){b.classList.remove('sel');}); mAction=null;
     ['mName','mRub','mUsd','mUsdRate','mUsdRub','mNote','mExA','mExB','mRate','mOpDate'].forEach(function(id){var e=document.getElementById(id); if(e)e.value='';});
-    document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdTouch=[]; mExTouch=[];
+    document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdLast=''; mExTouch=[];
     document.getElementById('mNameField').classList.remove('hidden'); document.getElementById('mRubField').classList.remove('hidden');
     document.getElementById('mUsdToggleField').classList.remove('hidden'); document.getElementById('mExchField').classList.add('hidden'); mCalcRate();
   }
@@ -1279,27 +1275,22 @@
   }
   /* ===== общий движок региона (используют Узбекистан и Регионы) ===== */
   function makeRegionEngine(pfx, getRegionName){
-    var st={action:null,touch:[],lastKey:'',lastTime:0,avg:0};
+    var st={action:null,last:'',lastKey:'',lastTime:0,avg:0};
     function id(s){return document.getElementById(pfx+s);}
     function pick(el,a){var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); el.classList.add('sel'); st.action=a; calc();}
     /* три связанных поля: U доллар / R курс / B рубль-факт.
        Два последних тронутых — источники, третье пересчитывается. */
-    function touch(k){ st.touch=st.touch.filter(function(x){return x!==k;}); st.touch.push(k); if(st.touch.length>2) st.touch.shift(); }
     function calc(k){
-      if(k) touch(k);
+      if(k) st.last=k;
       var uId=pfx+'Usd'+(pfx==='g'?'In':'');
       var usd=moneyVal(uId), rub=moneyVal(pfx+'Rub');
       var rEl=id('Rate'); var rate=parseFloat(String(rEl.value).replace(',','.'))||0;
-      var target=(st.touch.length===2)?['U','R','B'].filter(function(x){return st.touch.indexOf(x)===-1;})[0]:'B';
-      if(target==='B'){
+      if(st.last==='B'){                 // правили рубли -> курс подстраивается (2 знака)
+        if(usd>0&&rub>0) rEl.value=String(Math.round((rub/usd)*100)/100).replace('.',',');
+      } else {                           // правили $ или курс -> пересчитываются рубли
         var ri=id('Rub');
         if(usd>0&&rate>0) ri.value=Math.round(usd*rate).toLocaleString('ru-RU');
-        else if(st.touch.indexOf('B')===-1) ri.value='';
-      } else if(target==='R'){
-        if(usd>0&&rub>0) rEl.value=String(Math.round((rub/usd)*100)/100).replace('.',',');
-      } else {
-        var ue=document.getElementById(uId);
-        if(ue&&rate>0&&rub>0) ue.value=Math.round(rub/rate).toLocaleString('ru-RU');
+        else ri.value='';
       }
       hint(); render();
     }
@@ -1368,7 +1359,7 @@
     }
 
     function reset(){
-      var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.touch=[];
+      var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.last='';
       ['Name','Usd'+(pfx==='g'?'In':''),'Rate','Rub','ToWhom','Phone','Memo','OpDate'].forEach(function(s){var e=id(s); if(e)e.value='';});
       id('CalcBox').innerHTML=t('calcEmpty'); hint();
     }
@@ -1484,7 +1475,7 @@
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region'));
       p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');});
       var ab=p.querySelector('.act-btn.'+act); if(ab) ab.classList.add('sel');
-      st.action=act; st.touch=[];
+      st.action=act; st.last='';
       id('Name').value=data.name||'';
       id('Usd'+(pfx==='g'?'In':'')).value=data.usd?Math.abs(Number(data.usd)).toLocaleString('ru-RU'):'';
       id('Rate').value=data.rate?String(data.rate).replace('.',','):'';

@@ -1814,7 +1814,7 @@
     if(sum<=0){toast(t('enterSum'),true); return;}
     askConfirm(t('transferQ',{f:from,t:to}), function(){
       var btn=document.getElementById('tSubmit'); btn.disabled=true; btn.textContent='…';
-      apiCall('saveTransfer',{payload:{from:from,to:to,sum:sum,note:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||''}},AUTH_TOKEN).then(function(res){
+      apiCall('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||''}},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('doTransfer');
         if(res.ok){showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽'); scrDrop_(); ['tFrom','tTo','tSum','tNote','tOpDate'].forEach(function(id){document.getElementById(id).value='';}); tRefreshFeed();}
         else toast(res.error||t('err'),true);
@@ -1913,8 +1913,10 @@
       var box=document.getElementById('meResult'); box.style.display='block';
       if(!res.ok){ box.textContent=res.error||'Ошибка'; return; }
       box.textContent=res.text||'';
-      if(res.archiveExists){ toast('Месяц уже закрыт',true); return; }
-      if(res.diff===0){ meBoundaryOk=d; document.getElementById('meCloseBtn').style.display='block'; }
+      // сервер отдаёт farqBefore; поля diff/archiveExists он не возвращал никогда,
+      // из-за чего кнопка закрытия не появлялась вообще
+      if(String(res.text||'').indexOf('УЖЕ ЕСТЬ')>-1){ toast('Месяц уже закрыт',true); return; }
+      if(res.farqBefore===0){ meBoundaryOk=d; document.getElementById('meCloseBtn').style.display='block'; }
       else toast('farq расходится — закрывать нельзя',true);
     }).catch(function(){ btn.disabled=false; btn.textContent='Превью закрытия'; toast(t('connLost'),true); });
   }
@@ -2244,8 +2246,11 @@
     }
     if(dlOpenName===name) dlOpenName='';   // свернуть карточку
     dlRender(dlClients);
-    // 2) пишем в лог на сервер фоном (интерфейс не ждёт)
-    apiCall('logReportSent',{name:name,reportDay:dlDayKey(),period:period,lang:dlLangVal,source:'Кунлик'},AUTH_TOKEN);
+    // 2) пишем в лог на сервер фоном (интерфейс не ждёт).
+    // text бэкенд принимает и дописывает в телеграм-лог — раньше он не отправлялся,
+    // и в теме «Отчёты» была только шапка без самого отчёта.
+    var _txt=(dlCache[name]&&dlCache[name].text)||'';
+    apiCall('logReportSent',{name:name,reportDay:dlDayKey(),period:period,lang:dlLangVal,source:'Кунлик',text:_txt},AUTH_TOKEN,true);
   }
   // возврат в приложение из WhatsApp список НЕ перезагружает —
   // статус «отправлено» уже проставлен мгновенно в dlSent.
@@ -2658,7 +2663,7 @@
     var b=this; b.disabled=true;
     apiCall('editOperation',{opId:edCurId,fields:{name:nm,note:nt}},AUTH_TOKEN).then(function(res){
       b.disabled=false;
-      if(res.ok){document.getElementById('editWrap').classList.remove('show'); edCurId=''; showOk(t('editSaved'),esc(nm)); aLoadCancel();}
+      if(res.ok){document.getElementById('editWrap').classList.remove('show'); edCurId=''; showOk(t('editSaved'),esc(nm)); scrDrop_(); aLoadCancel();}
       else toast(res.error||t('err'),true);
     }).catch(function(){b.disabled=false; toast(t('connLost'),true);});
   };
@@ -2725,7 +2730,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 14;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
+  var APP_VERSION = 15;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
   (function(){
     // номер версии внизу экрана (для сверки глазами); bottom:74px — чтобы не прятался под кнопкой ⟳
     var v=document.createElement('div');

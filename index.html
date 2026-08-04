@@ -277,6 +277,7 @@
       <div class="field"><label data-i18n="lblNote">Изоҳ</label><input type="text" id="mNote" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="field" id="mOpDateField"><label data-i18n="lblOpDate">Сана (бўш = бугун)</label><input type="date" id="mOpDate"></div>
       <button class="submit" id="mSubmit" onclick="mSubmit()" data-i18n="save">Сақлаш</button>
+      <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="mReset()" data-i18n="clearForm">Тозалаш</button>
     </div>
     <div class="card feed">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -320,6 +321,7 @@
       <div class="calc-box"><div id="uCalcBox" style="font-size:13px;color:var(--muted)" data-i18n="calcEmpty">Амал танланг, доллар ва курс киритинг</div></div>
       <div class="field" id="uOpDateField"><label data-i18n="lblOpDate">Сана (бўш = бугун)</label><input type="date" id="uOpDate"></div>
       <button class="submit" id="uSubmit" onclick="uSubmit()" data-i18n="createDeal">Сделка яратиш</button>
+      <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="UZB.reset()" data-i18n="clearForm">Тозалаш</button>
     </div>
     <div class="card feed"><h2 data-i18n="histUzb">История (Узбекистан) · 2 кун</h2>
       <div id="uFeed"><div class="loading">…</div></div>
@@ -361,6 +363,7 @@
       <div class="calc-box"><div id="gCalcBox" style="font-size:13px;color:var(--muted)" data-i18n="calcEmpty">Амал танланг, доллар ва курс киритинг</div></div>
       <div class="field" id="gOpDateField"><label data-i18n="lblOpDate">Сана (бўш = бугун)</label><input type="date" id="gOpDate"></div>
       <button class="submit" id="gSubmit" onclick="gSubmit()" data-i18n="createDeal">Сделка яратиш</button>
+      <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="REG.reset()" data-i18n="clearForm">Тозалаш</button>
     </div>
     <div class="card feed"><h2 data-i18n="hist20">История · сўнгги 20</h2>
       <div id="gFeed"><div class="loading">…</div></div>
@@ -1619,7 +1622,7 @@
       hint(); render();
     }
     function setAvg(a){ st.avg=a||0; }
-    return {pick:pick,calc:calc,rubEdit:rubEdit,submit:submit,refreshBalance:refreshBalance,refreshFeed:refreshFeed,loadReq:loadReq,renderReq:renderReq,renderFeed:renderFeed,setEdit:setEdit,feedPeriod:feedPeriod,setAvg:setAvg,gen:gen,genOk:genOk,filterFeed:filterFeed,afterSave:afterSave};
+    return {pick:pick,calc:calc,rubEdit:rubEdit,submit:submit,refreshBalance:refreshBalance,refreshFeed:refreshFeed,loadReq:loadReq,renderReq:renderReq,renderFeed:renderFeed,setEdit:setEdit,feedPeriod:feedPeriod,setAvg:setAvg,gen:gen,genOk:genOk,filterFeed:filterFeed,afterSave:afterSave,reset:reset};
   }
 
   /* Узбекистан — регион фиксированный */
@@ -2542,23 +2545,39 @@
     if(clPeriodVal==='range') return {from:document.getElementById('clFrom').value||'', to:document.getElementById('clTo').value||''};
     return {from:'',to:''};
   }
+  // v17: счётчик поколений — поздний ответ по ПРЕДЫДУЩЕМУ клиенту больше не
+  // перетирает экран текущего. Раньше при быстром переключении двух клиентов
+  // на экране могли оказаться чужие цифры.
+  var clGen=0;
   function clLoadOps(){
     var box=document.getElementById('clOpsList');
     document.getElementById('clReportResult').innerHTML='';
     var d=clDates();
-    var key=clCurName+'|'+clPeriodVal+'|'+d.from+'|'+d.to;
+    var name=clCurName;
+    var key=name+'|'+clPeriodVal+'|'+d.from+'|'+d.to;
     var cached=CL_CACHE[key];
+    var g=++clGen;
+
     if(cached){
       clReportText=cached.text||''; clReportPhone=cached.phone||''; clClosing=cached.closing||0; clOpening=cached.opening||0;
       clRenderBalance(cached.closing||0,(cached.ops||[]).length); clRenderOps(cached.ops||[]);
-    } else box.innerHTML='<div class="loading">…</div>';
-    apiCall('getClientReport',{name:clCurName,dateFrom:d.from,dateTo:d.to,lang:'uz'},AUTH_TOKEN).then(function(res){
+    } else {
+      // показать хоть что-то верное СРАЗУ: за период «всё» текущий остаток
+      // равен балансу из уже загруженного списка клиентов
+      var hit=(clPeriodVal==='all')?qbFromCache_(name):null;
+      clReportText=''; clReportPhone='';
+      clRenderBalance(hit?(hit.balance||0):0, hit?(hit.count||0):0);
+      box.innerHTML='<div class="loading">…</div>';
+    }
+
+    apiCall('getClientReport',{name:name,dateFrom:d.from,dateTo:d.to,lang:'uz'},AUTH_TOKEN,!!cached).then(function(res){
+      if(g!==clGen || name!==clCurName) return;      // ответ по другому клиенту/периоду — мимо
       if(!res||!res.ok){ if(!cached) box.innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       CL_CACHE[key]=res;
       clReportText=res.text||''; clReportPhone=res.phone||''; clClosing=res.closing||0; clOpening=res.opening||0;
       clRenderBalance(res.closing||0, res.ops?res.ops.length:0);
       clRenderOps(res.ops||[]);
-    }).catch(function(){ if(!cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+    }).catch(function(){ if(g===clGen && !cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
   function clRenderBalance(closing, count){
     var el=document.getElementById('clBalance');
@@ -2862,7 +2881,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 17;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
+  var APP_VERSION = 16;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
   (function(){
     // номер версии внизу экрана (для сверки глазами); bottom:74px — чтобы не прятался под кнопкой ⟳
     var v=document.createElement('div');

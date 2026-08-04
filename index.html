@@ -857,6 +857,19 @@
         return res;
       }).catch(function(err){ settle(); throw err; });
   }
+  // v18: ПОВТОР ДЛЯ ПИШУЩИХ ОПЕРАЦИЙ.
+  // Apps Script отвечает не сразу, а перенаправлением на другой домен — два
+  // сетевых прыжка вместо одного. На мобильной связи второй иногда теряется:
+  // сервер строку записал, а телефон видит обрыв и пугает оператора.
+  // Повтор с ТЕМ ЖЕ opId безопасен: у saveMoscow, saveRegionRequest,
+  // saveTransfer и saveStartBalance есть защита от дубля — сервер увидит
+  // знакомый идентификатор и ответит «уже записано», второй строки не будет.
+  function apiWrite(action,args,token){
+    return apiCall(action,args,token).catch(function(){
+      return new Promise(function(r){ setTimeout(r,1500); })
+        .then(function(){ return apiCall(action,args,token); });
+    });
+  }
   var AUTH_TOKEN=localStorage.getItem('kassa_token')||'';
   var USER_ROLE=localStorage.getItem('kassa_role')||'';
   var USER_NAME=localStorage.getItem('kassa_name')||'';
@@ -1201,7 +1214,7 @@
     mLastKey=key; mLastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
     var btn=document.getElementById('mSubmit'); btn.disabled=true; btn.textContent=t('writing');
     mOptimistic(p);   // строка появляется в ленте сразу, не дожидаясь сервера
-    apiCall('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
+    apiWrite('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('save');
       if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res.screen); }
       else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
@@ -1466,7 +1479,7 @@
       st.lastKey=key; st.lastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
       var btn=id('Submit'); btn.disabled=true; btn.textContent=t('creating');
       optimistic(p);   // строка в ленте сразу, до ответа сервера
-      apiCall('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
+      apiWrite('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('createDeal');
         if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res.screen); }
         else { toast(res.error||t('err'),true); reload(); }
@@ -1476,9 +1489,16 @@
     function optimistic(p){
       var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
       var sign=(p.action==='oldim')?1:-1;
-      st.feedPeriod='today';
+      // период трогаем ТОЛЬКО если переключатель существует. У Узбекистана его
+      // нет, и выставленный 'today' заставлял фильтр выбрасывать вчерашние
+      // строки — лента схлопывалась до одного дня вместо двух.
       var tb=id('FeedToday'), yb=id('FeedYesterday'), wb=id('FeedWeek');
-      if(tb) tb.classList.add('sel'); if(yb) yb.classList.remove('sel'); if(wb) wb.classList.remove('sel');
+      if(tb){
+        st.feedPeriod='today';
+        tb.classList.add('sel');
+        if(yb) yb.classList.remove('sel');
+        if(wb) wb.classList.remove('sel');
+      }
       renderFeed([{ _ts:d.getTime(), datetime:z(d.getHours())+':'+z(d.getMinutes()),
         action:(p.action==='oldim'?'Олдим':'Бердим'), name:p.name||'',
         usd:sign*(p.usd||0), rate:p.rate||'', rub:p.rub||0, profit:0,
@@ -1902,7 +1922,7 @@
     if(!tOpId) tOpId='tr_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     askConfirm(t('transferQ',{f:from,t:to}), function(){
       var btn=document.getElementById('tSubmit'); btn.disabled=true; btn.textContent='…';
-      apiCall('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||'',opId:tOpId}},AUTH_TOKEN).then(function(res){
+      apiWrite('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||'',opId:tOpId}},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('doTransfer');
         if(res.ok){
           if(!res.dup) showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽');
@@ -2089,7 +2109,7 @@
     if(sum<=0){toast(t('enterSum'),true); return;}
     if(!sOpId) sOpId='st_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     var btn=document.getElementById('sSubmit'); btn.disabled=true; btn.textContent='…';
-    apiCall('saveStartBalance',{payload:{name:name,sum:sum,type:sTypeVal,opId:sOpId}},AUTH_TOKEN).then(function(res){
+    apiWrite('saveStartBalance',{payload:{name:name,sum:sum,type:sTypeVal,opId:sOpId}},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('writeStart');
       if(res.ok){ if(!res.dup) showOk(t('startSaved'),esc(name)+' · '+(sTypeVal==='hakdor'?'+':'−')+fmt(sum)+' ₽'); else toast(t('alreadySaved')); scrDrop_(); sClear(); }
       else toast(res.error||t('err'),true);
@@ -2881,7 +2901,9 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 16;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
+  var APP_VERSION = 18;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+                          // телефон ждёт version.json БОЛЬШЕ своего номера,
+                          // понижение навсегда убивает баннер обновления.
   (function(){
     // номер версии внизу экрана (для сверки глазами); bottom:74px — чтобы не прятался под кнопкой ⟳
     var v=document.createElement('div');

@@ -583,9 +583,9 @@
       <div class="usd" id="clBalSub"></div>
     </div>
     <div class="seg" style="margin-bottom:14px;">
-      <div class="seg-btn sel" id="clPerAll" onclick="clPeriod('all')" data-i18n="all">Ҳаммаси</div>
-      <div class="seg-btn" id="clPerToday" onclick="clPeriod('today')" data-i18n="today">Бугун</div>
+      <div class="seg-btn sel" id="clPerMonth" onclick="clPeriod('month')" data-i18n="curMonth">Шу ой</div>
       <div class="seg-btn" id="clPerRange" onclick="clPeriod('range')" data-i18n="period">Давр</div>
+      <div class="seg-btn" id="clPerAll" onclick="clPeriod('all')" data-i18n="all">Ҳаммаси</div>
     </div>
     <div class="row2 hidden" id="clRangeBox" style="margin-bottom:14px;">
       <div><label data-i18n="lblFrom">С даты</label><input type="date" id="clFrom"></div>
@@ -631,6 +631,8 @@
     connBroke:'Связь прервалась — проверьте историю перед повтором',
     alreadySaved:'Уже записано',
     clearForm:'Очистить',
+    curMonth:'Этот месяц',
+    reportSent:'Отправка записана',
     loading:'Загрузка…', refreshed:'Обновлено', copy:'Копия', copied:'Скопировано', copyFail:'Не скопировалось',
     none:'Нет', newClientBtn:'+ Новый клиент', newClientQ:'Новый клиент «{n}»?', clientAdded:'Клиент добавлен',
     dupWarn:'В базе есть похожий — выберите его:', dupCreate:'+ Всё равно создать нового',
@@ -725,6 +727,8 @@
     connBroke:'Алоқа узилди — такрорлашдан олдин тарихни текширинг',
     alreadySaved:'Аллақачон ёзилган',
     clearForm:'Тозалаш',
+    curMonth:'Шу ой',
+    reportSent:'Юборилди ёзилди',
     loading:'Юкланмоқда…', refreshed:'Янгиланди', copy:'Нусха', copied:'Нусха олинди', copyFail:'Нусха олинмади',
     none:'Йўқ', newClientBtn:'+ Янги мижоз', newClientQ:'Янги мижоз «{n}»?', clientAdded:'Мижоз қўшилди',
     dupWarn:'Базада ўхшаш мижоз бор — уни танланг:', dupCreate:'+ Барибир янги яратиш',
@@ -838,38 +842,67 @@
     if(document.body) document.body.classList.remove('busy');
     if(_reloadWait){ _reloadWait=false; toast(t('refreshed')); }
   }
-  // quiet=true — фоновый вызов: не участвует в индикации и в стороже вообще
+  // один сетевой вызов, без повторов
+  function apiOnce_(action,args,token){
+    return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:action,token:token||'',args:args||{}})}).then(function(r){return r.json();});
+  }
+  // v18: АВТОМАТИЧЕСКИЙ ПОВТОР ДЛЯ ЛЮБОГО ЗАПРОСА.
+  // Apps Script отвечает не сразу, а перенаправлением на другой домен — два
+  // сетевых прыжка вместо одного. Второй на мобильной связи иногда теряется,
+  // и запрос падает, хотя сервер отработал. Раньше это сразу превращалось
+  // в «нет связи», и оператор жал ⟳ вручную.
+  // Чтение повторять безопасно всегда. Запись — тоже: у всех пишущих операций
+  // есть защита от дубля по opId, сервер увидит знакомый идентификатор
+  // и ответит «уже записано» вместо второй строки.
+  var _lastAct=0;                                  // когда оператор последний раз что-то делал
   function apiCall(action,args,token,quiet){
     if(_reloadWait) quiet=false;   // ⟳ нажали руками — этот запрос показываем всегда
-    if(!quiet) netStart();
+    if(!quiet){ netStart(); _lastAct=Date.now(); }
     var done=false;
-    // сторож: ответ не пришёл за 25 сек -> ⟳ снова нажимается
     var wd=setTimeout(function(){
       if(done) return; done=true;
       if(!quiet){ var wasReload=_reloadWait; _reloadWait=false; netEnd(); if(wasReload) toast(t('slowNet')); }
     },25000);
     function settle(){ if(done) return false; done=true; clearTimeout(wd); if(!quiet) netEnd(); return true; }
-    return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:action,token:token||'',args:args||{}})}).then(function(r){return r.json();})
+
+    return apiOnce_(action,args,token)
+      .catch(function(){                            // не доехало — один повтор
+        return new Promise(function(r){ setTimeout(r,1200); })
+          .then(function(){ return apiOnce_(action,args,token); });
+      })
       .then(function(res){
         if(res&&res.error==='Сессия недействительна'&&action!=='checkLogin'){ logout(); }
         settle();
         return res;
       }).catch(function(err){ settle(); throw err; });
   }
-  // v18: ПОВТОР ДЛЯ ПИШУЩИХ ОПЕРАЦИЙ.
-  // Apps Script отвечает не сразу, а перенаправлением на другой домен — два
-  // сетевых прыжка вместо одного. На мобильной связи второй иногда теряется:
-  // сервер строку записал, а телефон видит обрыв и пугает оператора.
-  // Повтор с ТЕМ ЖЕ opId безопасен: у saveMoscow, saveRegionRequest,
-  // saveTransfer и saveStartBalance есть защита от дубля — сервер увидит
-  // знакомый идентификатор и ответит «уже записано», второй строки не будет.
-  function apiWrite(action,args,token){
-    return apiCall(action,args,token).catch(function(){
-      return new Promise(function(r){ setTimeout(r,1500); })
-        .then(function(){ return apiCall(action,args,token); });
-    });
+  function apiWrite(action,args,token){ return apiCall(action,args,token); }   // повтор теперь внутри
+
+  // v18: ФОНОВАЯ ДОГРУЗКА ПО ОДНОМУ И ТОЛЬКО В ПРОСТОЕ.
+  // Прежний прогрев тянул все экраны ОДНИМ вызовом на 41 КБ и четыре секунды,
+  // занимая очередь: Apps Script выполняет запросы одного пользователя строго
+  // по одному, и всё, что оператор нажимал в это время, ждало прогрев.
+  // Теперь задачи идут по очереди, и следующая берётся, только если оператор
+  // ничего не делал полторы секунды и нет активных запросов.
+  var _bg=[], _bgBusy=false;
+  function bgAdd(name,fn){
+    for(var i=0;i<_bg.length;i++) if(_bg[i].name===name) return;   // уже в очереди
+    _bg.push({name:name,fn:fn});
   }
+  function bgDrop(name){
+    for(var i=_bg.length-1;i>=0;i--) if(_bg[i].name===name) _bg.splice(i,1);
+  }
+  function bgTick(){
+    if(_bgBusy || !_bg.length) return;
+    if(_net) return;                                  // идёт запрос оператора — не мешаем
+    if(Date.now()-_lastAct < 1500) return;            // оператор только что нажимал
+    var job=_bg.shift(); _bgBusy=true;
+    var fin=function(){ _bgBusy=false; };
+    try{ var p=job.fn(); if(p&&p.then) p.then(fin,fin); else fin(); }
+    catch(e){ fin(); }
+  }
+  setInterval(bgTick,1200);
   var AUTH_TOKEN=localStorage.getItem('kassa_token')||'';
   var USER_ROLE=localStorage.getItem('kassa_role')||'';
   var USER_NAME=localStorage.getItem('kassa_name')||'';
@@ -923,7 +956,7 @@
       for(var i=localStorage.length-1;i>=0;i--){
         var k=localStorage.key(i);
         if(!k || k.indexOf('c_')!==0) continue;
-        if(k==='c_db' || k==='c_cur') continue;
+        if(k==='c_db' || k==='c_cur' || k==='c_reglist') continue;   // справочники от денег не зависят
         if(k.indexOf('c_mo_')===0){
           var v=cGet(k.slice(2));
           if(v && v.source==='archive') continue;   // закрытый месяц — оставляем
@@ -966,10 +999,12 @@
     var cl=document.getElementById('scr-client'); if(cl) cl.classList.add('hidden');
     var t=document.getElementById('scr-'+name); if(t)t.classList.remove('hidden');
     if(el){document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('sel');}); el.classList.add('sel');}
+    // экран, куда зашли, грузит себя сам — из фоновой очереди его убираем,
+    // чтобы не делать ту же работу дважды
     if(name==='moscow'){mOpen(); refreshDB();}
-    if(name==='uzb'){uOpen(); refreshDB();}
-    if(name==='region'){gInitRegions(); refreshDB();}
-    if(name==='req'){rRefresh();}
+    if(name==='uzb'){bgDrop('uzb'); uOpen(); refreshDB();}
+    if(name==='region'){bgDrop('reg'); gInitRegions(); refreshDB();}
+    if(name==='req'){bgDrop('req'); rRefresh();}
     if(name==='admin'){aLoadCancel();}
     if(name==='transfer'){tRefreshFeed();}
     if(name==='reports'){repInit();}
@@ -1260,6 +1295,7 @@
       if(g!==mGen) return;                           // пришёл устаревший ответ — выбрасываем
       if(!res||!res.ok){ if(!c) toast((res&&res.error)||t('err'),true); return; }
       quietSet_('moscow');
+      warmOnce();                                    // Москва отрисована — ставим остальное в фон
       if(!revNew_(res)) return;                      // {same:true} — кэш верен, перерисовывать нечего
       cPut('moscow',res); mApply(res);               // свежее — поверх (фильтр по текущей кнопке внутри mApply)
     }).catch(function(){ if(g===mGen && !c) toast(t('connLost'),true); });
@@ -1296,7 +1332,7 @@
       for(var i=localStorage.length-1;i>=0;i--){
         var k=localStorage.key(i);
         if(!k||k.indexOf('c_')!==0) continue;
-        if(k==='c_db'||k==='c_cur'||k==='c_'+keep) continue;
+        if(k==='c_db'||k==='c_cur'||k==='c_reglist'||k==='c_'+keep) continue;
         if(k.indexOf('c_mo_')===0){ var v=cGet(k.slice(2)); if(v&&v.source==='archive') continue; }
         localStorage.removeItem(k);
       }
@@ -1710,6 +1746,7 @@
       quietSet_('reg_'+(res.region||gCurRegion));
       if(!revNew_(res)) return;                      // кэш этого региона верен
       if(res.region) cPut('reg_'+res.region,res);
+      if(res.regions) cPut('reglist',res.regions);   // список для мгновенной отрисовки вкладок
       if(res.regions){
         gRegList=(res.regions||[]).filter(function(r){return r!=='Узбекистан';});
         if(res.region) gCurRegion=res.region;
@@ -1739,6 +1776,18 @@
   }
   function gInitRegions(){
     updateExecAllVisibility();
+    // если фон уже скачал список и первый регион — подставляем их, чтобы
+    // экран нарисовался из кэша мгновенно, а не ждал ответа сервера
+    if(!gCurRegion){
+      var lst=cGet('reglist');
+      if(lst&&lst.length){
+        gRegList=lst.filter(function(r){return r!=='Узбекистан';});
+        for(var i=0;i<gRegList.length;i++){
+          if(cGet('reg_'+gRegList[i])){ gCurRegion=gRegList[i]; break; }
+        }
+        if(gCurRegion) gRenderRegionTabs();
+      }
+    }
     gOpen(true);   // один вызов: openRegion сам вернёт список регионов
   }
   function gRenderRegionTabs(){
@@ -1895,7 +1944,14 @@
   }
   /* ===== ПЕРЕВОДЫ ===== */
   function tRefreshFeed(){
-    apiCall('getTransferFeed',{limit:10},AUTH_TOKEN).then(tRenderFeed);
+    var c=cGet('tfeed');
+    if(c) tRenderFeed(c);                             // мгновенно из кэша
+    if(c && quietOk_('tfeed')) return;
+    apiCall('getTransferFeed',{limit:10},AUTH_TOKEN,!!c).then(function(res){
+      quietSet_('tfeed');
+      if(res&&res.ok) cPut('tfeed',res);
+      tRenderFeed(res);
+    }).catch(function(){});
   }
   function tRenderFeed(res){
     var box=document.getElementById('tFeed');
@@ -2178,17 +2234,19 @@
       if(tab) tab.classList.toggle('sel', t===name);
       if(pane) pane.classList.toggle('hidden', t!==name);
     });
-    if(name==='balance') balLoad();
+    if(name==='balance'){ bgDrop('bal'); balLoad(); }
     if(name==='daily') dlLoad();
-    if(name==='overview') ovLoad();
+    if(name==='overview'){ bgDrop('ovw'); ovLoad(); }
     if(name==='monthly') moInit();
     if(name==='history') thInit();
   }
   function ovLoad(){
     if(OV_DATA) ovRender(OV_DATA);   // мгновенно из памяти/локального кэша
     else document.getElementById('ovBox').innerHTML='<div class="loading">…</div>';
+    if(OV_DATA && quietOk_('ovw')) return;            // проверяли только что — сеть не нужна
     apiCall('getOverview',{fresh:_forceFresh?1:0,rev:revOf_(OV_DATA)},AUTH_TOKEN,!!OV_DATA).then(function(res){
       if(!res||!res.ok){ if(!OV_DATA) document.getElementById('ovBox').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
+      quietSet_('ovw');
       if(!revNew_(res)) return;      // кэш верен
       OV_DATA=res; OV_TS=Date.now(); cPut('ovw',res); ovRender(res);
     }).catch(function(){ if(!OV_DATA) document.getElementById('ovBox').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
@@ -2228,8 +2286,10 @@
         document.getElementById('balTotalMinus').textContent=fmt(_balC.totalMinus)+' ₽';
       }
     }
+    if(!first && quietOk_('bal')) return;             // проверяли только что — сеть не нужна
     apiCall('getClientsBalance',{fresh:_forceFresh?1:0,rev:first?'':revOf_(_balC)},AUTH_TOKEN,!first).then(function(res){
       if(!res||!res.ok){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
+      quietSet_('bal');
       if(!revNew_(res)) return;      // кэш верен
       BAL_DATA=res.items||[]; BAL_TS=Date.now();
       _balC={rev:res.rev,items:BAL_DATA,totalPlus:res.totalPlus,totalMinus:res.totalMinus};
@@ -2264,14 +2324,19 @@
   }
   var dlReports={};
   function dlLoad(){
-    document.getElementById('dlList').innerHTML='<div class="loading">…</div>';
+    var ck='dl_'+dlDayVal, c=cGet(ck);
+    if(c&&c.clients){ dlClients=c.clients; dlRender(dlClients); }
+    else document.getElementById('dlList').innerHTML='<div class="loading">…</div>';
     dlReports={};
-    apiCall('getDailyClients',{day:dlDayVal},AUTH_TOKEN).then(function(res){
-      if(!res||!res.ok){ document.getElementById('dlList').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
+    if(c && quietOk_(ck)){ dlPreload(); return; }
+    apiCall('getDailyClients',{day:dlDayVal},AUTH_TOKEN,!!c).then(function(res){
+      quietSet_(ck);
+      if(!res||!res.ok){ if(!c) document.getElementById('dlList').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       dlClients=res.clients||[];     // сохраняем в память
+      cPut(ck,{clients:dlClients});
       dlRender(dlClients);
       dlPreload();                   // тексты всех клиентов дня — одним запросом
-    }).catch(function(){ document.getElementById('dlList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+    }).catch(function(){ if(!c) document.getElementById('dlList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
   // v17: на сервере есть готовая getDailyReports — она строит отчёты ВСЕХ
   // клиентов дня за один скан листа. Фронт её не звал и дёргал getClientReport
@@ -2529,16 +2594,21 @@
   }
   function openClient(name, from){
     CL_BACK=from||'reports';
-    clCurName=name; clPeriodVal='all'; clReportText=''; clReportPhone='';
+    // v18: открываем на «Шу ой» (текущий месяц), а не «Ҳаммаси». После закрытия
+    // месяца период «всё» заставляет сервер читать оба архивных листа плюс
+    // «Операции» — полторы тысячи строк ради экрана, который открывают на
+    // секунду. Текущий месяц начался после границы закрытия, поэтому архивы
+    // не читаются вовсе. Текущий остаток от периода не зависит.
+    clCurName=name; clPeriodVal='month'; clReportText=''; clReportPhone='';
     document.getElementById('clName').textContent=name;
     var _clP=''; for(var _pi=0;_pi<DB.length;_pi++){ if(DB[_pi].name===name){ _clP=String(DB[_pi].phone||'').replace(/\D/g,''); break; } }
     document.getElementById('clPhone').textContent=_clP?phFmt(_clP):'';
     document.getElementById('clReportResult').innerHTML='';
     document.getElementById('clKeyBox').innerHTML='';
     document.getElementById('clRangeBox').classList.add('hidden');
-    document.getElementById('clPerAll').classList.add('sel');
-    document.getElementById('clPerToday').classList.remove('sel');
+    document.getElementById('clPerMonth').classList.add('sel');
     document.getElementById('clPerRange').classList.remove('sel');
+    document.getElementById('clPerAll').classList.remove('sel');
     ['moscow','uzb','region','req','transfer','admin','reports'].forEach(function(s){var d=document.getElementById('scr-'+s); if(d)d.classList.add('hidden');});
     document.getElementById('scr-client').classList.remove('hidden');
     clLoadOps();
@@ -2552,18 +2622,21 @@
   }
   function clPeriod(p){
     clPeriodVal=p;
-    document.getElementById('clPerAll').classList.toggle('sel',p==='all');
-    document.getElementById('clPerToday').classList.toggle('sel',p==='today');
+    document.getElementById('clPerMonth').classList.toggle('sel',p==='month');
     document.getElementById('clPerRange').classList.toggle('sel',p==='range');
+    document.getElementById('clPerAll').classList.toggle('sel',p==='all');
     document.getElementById('clRangeBox').classList.toggle('hidden',p!=='range');
     if(p!=='range') clLoadOps();
   }
   function clDates(){
+    // дату собираем из локальных частей. toISOString тут нельзя: он переводит
+    // в UTC, и при нашем поясе первое число месяца уезжает на предыдущий месяц.
     var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
-    var today=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
-    if(clPeriodVal==='today') return {from:today,to:today};
-    if(clPeriodVal==='range') return {from:document.getElementById('clFrom').value||'', to:document.getElementById('clTo').value||''};
-    return {from:'',to:''};
+    var y=d.getFullYear(), m=z(d.getMonth()+1);
+    if(clPeriodVal==='month') return {from:y+'-'+m+'-01', to:''};
+    if(clPeriodVal==='today')  return {from:y+'-'+m+'-'+z(d.getDate()), to:y+'-'+m+'-'+z(d.getDate())};
+    if(clPeriodVal==='range')  return {from:document.getElementById('clFrom').value||'', to:document.getElementById('clTo').value||''};
+    return {from:'',to:''};   // «Ҳаммаси» — с архивами, поэтому медленно и по кнопке
   }
   // v17: счётчик поколений — поздний ответ по ПРЕДЫДУЩЕМУ клиенту больше не
   // перетирает экран текущего. Раньше при быстром переключении двух клиентов
@@ -2575,7 +2648,11 @@
     var d=clDates();
     var name=clCurName;
     var key=name+'|'+clPeriodVal+'|'+d.from+'|'+d.to;
-    var cached=CL_CACHE[key];
+    // v18: кэш экрана клиента переехал в память телефона — переживает
+    // перезапуск приложения. Плюс ревизия: если данные не менялись, сервер
+    // ответит «актуально» и не будет читать лист вообще.
+    var cached=CL_CACHE[key] || cGet('cl_'+key);
+    if(cached && !CL_CACHE[key]) CL_CACHE[key]=cached;
     var g=++clGen;
 
     if(cached){
@@ -2584,16 +2661,19 @@
     } else {
       // показать хоть что-то верное СРАЗУ: за период «всё» текущий остаток
       // равен балансу из уже загруженного списка клиентов
-      var hit=(clPeriodVal==='all')?qbFromCache_(name):null;
+      // текущий остаток одинаков и для «Ҳаммаси», и для «Бугун» — период на него
+      // не влияет. Только у произвольного диапазона с прошлой датой конца он свой.
+      var hit=(clPeriodVal!=='range')?qbFromCache_(name):null;
       clReportText=''; clReportPhone='';
       clRenderBalance(hit?(hit.balance||0):0, hit?(hit.count||0):0);
       box.innerHTML='<div class="loading">…</div>';
     }
 
-    apiCall('getClientReport',{name:name,dateFrom:d.from,dateTo:d.to,lang:'uz'},AUTH_TOKEN,!!cached).then(function(res){
+    apiCall('getClientReport',{name:name,dateFrom:d.from,dateTo:d.to,lang:'uz',rev:revOf_(cached)},AUTH_TOKEN,!!cached).then(function(res){
       if(g!==clGen || name!==clCurName) return;      // ответ по другому клиенту/периоду — мимо
       if(!res||!res.ok){ if(!cached) box.innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
-      CL_CACHE[key]=res;
+      if(!revNew_(res)) return;                      // кэш верен, перерисовывать нечего
+      CL_CACHE[key]=res; cPut('cl_'+key,res);
       clReportText=res.text||''; clReportPhone=res.phone||''; clClosing=res.closing||0; clOpening=res.opening||0;
       clRenderBalance(res.closing||0, res.ops?res.ops.length:0);
       clRenderOps(res.ops||[]);
@@ -2639,12 +2719,22 @@
     box.innerHTML=h;
   }
   function clToggleBal(el){ var b=el.querySelector('.cl-runbal'); if(b) b.classList.toggle('hidden'); }
+  // v18: отправка с экрана клиента раньше НИКУДА не записывалась. В «Кунлик»
+  // после WhatsApp вызывается лог — строка падает в «Отчёты_лог» и в тему
+  // Телеграма, — а здесь такого вызова не было совсем.
+  function clSent(){
+    var per=(clPeriodVal==='month')?'Шу ой':(clPeriodVal==='all')?'Ҳаммаси':(clPeriodVal==='today')?'Бугун':'Давр';
+    var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
+    apiCall('logReportSent',{name:clCurName, reportDay:d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()),
+      period:per, lang:'uz', source:'Мижоз', text:clReportText},AUTH_TOKEN,true).catch(function(){});
+    toast(t('reportSent'));
+  }
   function clBuildReport(){
     if(!clReportText){ toast(t('loadFirst'),true); return; }
     var enc=encodeURIComponent(clReportText);
     var wa = (USER_ROLE==='report') ? '' : clReportPhone
-      ? '<a class="btn-done" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" href="https://wa.me/'+clReportPhone+'?text='+enc+'" target="_blank">WhatsApp</a>'
-      : '<a class="btn-done" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" href="https://wa.me/?text='+enc+'" target="_blank">WhatsApp '+t('noNumber')+'</a>';
+      ? '<a class="btn-done" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" href="https://wa.me/'+clReportPhone+'?text='+enc+'" target="_blank" onclick="clSent()">WhatsApp</a>'
+      : '<a class="btn-done" style="text-decoration:none;display:flex;align-items:center;justify-content:center;" href="https://wa.me/?text='+enc+'" target="_blank" onclick="clSent()">WhatsApp '+t('noNumber')+'</a>';
     document.getElementById('clReportResult').innerHTML=
       '<div class="card" style="margin-top:14px;"><pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:14px;line-height:1.5;margin:0 0 14px;color:var(--txt);">'+esc(clReportText)+'</pre>'+
       '<div class="req-btns"><button class="btn-share" style="flex:1;" onclick="clCopyReport()">'+t('copy')+'</button>'+wa+'</div></div>';
@@ -2901,7 +2991,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 18;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 19;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -2964,19 +3054,34 @@
     return out;
   }
   function moName_(mk){ var p=mk.split('-'); return t('monthNames').split(',')[parseInt(p[1],10)-1]+' '+p[0]; }
+  // v18: список мест раньше запрашивался у сервера при КАЖДОМ запуске и только
+  // потом грузился сам отчёт — два запроса подряд. Если первый не доезжал,
+  // выпадашки оставались пустыми, и архивный месяц, лежащий рядом в кэше,
+  // не показывался вовсе. Теперь список берётся из памяти телефона, а сеть —
+  // только если его там нет.
+  function moFill_(list){
+    MO_REGIONS=['Москва'].concat(list||[]);
+    var opts=MO_REGIONS.map(function(r){return '<option value="'+esc(r)+'">'+esc(r)+'</option>';}).join('');
+    document.getElementById('moPlace').innerHTML=opts;
+    document.getElementById('thPlace').innerHTML=opts;
+    document.getElementById('moMonth').innerHTML=moMonths_().map(function(mk){return '<option value="'+mk+'">'+moName_(mk)+'</option>';}).join('');
+    document.getElementById('thPeriod').innerHTML=
+      '<option value="d10">10 '+t('daysW')+'</option><option value="d30">30 '+t('daysW')+'</option>'+
+      moMonths_().map(function(mk){return '<option value="m'+mk+'">'+moName_(mk)+'</option>';}).join('');
+  }
   function moPlaces_(cb){
     if(MO_REGIONS){ cb(); return; }
-    apiCall('getRegions',{},AUTH_TOKEN).then(function(list){
-      MO_REGIONS=['Москва'].concat(list||[]);
-      var opts=MO_REGIONS.map(function(r){return '<option value="'+esc(r)+'">'+esc(r)+'</option>';}).join('');
-      document.getElementById('moPlace').innerHTML=opts;
-      document.getElementById('thPlace').innerHTML=opts;
-      document.getElementById('moMonth').innerHTML=moMonths_().map(function(mk){return '<option value="'+mk+'">'+moName_(mk)+'</option>';}).join('');
-      document.getElementById('thPeriod').innerHTML=
-        '<option value="d10">10 '+t('daysW')+'</option><option value="d30">30 '+t('daysW')+'</option>'+
-        moMonths_().map(function(mk){return '<option value="m'+mk+'">'+moName_(mk)+'</option>';}).join('');
+    var cached=cGet('reglist');                     // его качает фон вместе с регионами
+    if(cached && cached.length){
+      moFill_(cached.filter(function(r){return r!=='Москва';}));
       cb();
-    }).catch(function(){ cb(); });
+      return;
+    }
+    apiCall('getRegions',{},AUTH_TOKEN).then(function(list){
+      if(list&&list.length) cPut('reglist',list);
+      moFill_(list);
+      cb();
+    }).catch(function(){ moFill_([]); cb(); });
   }
   function moInit(){ moPlaces_(function(){ if(!MO_INIT){MO_INIT=true;} moLoad(); }); }
   function thInit(){ moPlaces_(function(){ if(!TH_INIT){TH_INIT=true;} thLoad(); }); }
@@ -3122,14 +3227,70 @@
     // список уже есть — не лезем в очередь перед экраном, ждём 3 секунды
     if(DB.length) setTimeout(go,3000); else go();
   }
-  // v14: ФАЗА 2 (openApp) УБРАНА. Она занимала очередь ~4 секунды, и всё, что
-  // оператор нажимал в это время, ждало её. Каждый экран теперь рисуется из
-  // своего локального кэша мгновенно и обновляется одним своим запросом.
-  function warmOnce(){}   // заглушка: вызовы могли остаться в старом коде
+  // v18: фоновая догрузка остальных экранов. Не одним тяжёлым вызовом, как
+  // было в v12-v13, а задачами по одной и только когда оператор ничего не
+  // делает. Тогда Москва открывается сразу, а к моменту захода в отчёты там
+  // уже всё готово — и при этом очередь ничем не забита.
+  var _warmed=false;
+  function warmOnce(){
+    if(_warmed) return; _warmed=true;
+    var r=USER_ROLE;
+    if(['operator2','admin','report'].indexOf(r)!==-1){
+      bgAdd('bal',function(){
+        if(_balC) return null;                       // уже есть с прошлого запуска
+        return apiCall('getClientsBalance',{rev:''},AUTH_TOKEN,true).then(function(res){
+          if(!res||!res.ok||res.same) return;
+          BAL_DATA=res.items||[];
+          _balC={rev:res.rev,items:BAL_DATA,totalPlus:res.totalPlus,totalMinus:res.totalMinus};
+          cPut('bal',_balC);
+        }).catch(function(){});
+      });
+      bgAdd('ovw',function(){
+        if(OV_DATA) return null;
+        return apiCall('getOverview',{rev:''},AUTH_TOKEN,true).then(function(res){
+          if(!res||!res.ok||res.same) return;
+          OV_DATA=res; cPut('ovw',res);
+        }).catch(function(){});
+      });
+      bgAdd('uzb',function(){
+        var c=cGet('uzb'); if(c) return null;
+        return apiCall('openUzb',{rev:''},AUTH_TOKEN,true).then(function(res){
+          if(res&&res.ok&&!res.same) cPut('uzb',res);
+        }).catch(function(){});
+      });
+      // регионы: сервер сам вернёт первый не-Узбекистан и список остальных
+      bgAdd('reg',function(){
+        return apiCall('openRegion',{region:'',rev:''},AUTH_TOKEN,true).then(function(res){
+          if(!res||!res.ok||res.same) return;
+          if(res.region) cPut('reg_'+res.region,res);
+          if(res.regions) cPut('reglist',res.regions);
+        }).catch(function(){});
+      });
+    }
+    if(['operator2','operator3','admin'].indexOf(r)!==-1){
+      bgAdd('req',function(){
+        var c=cGet('req'); if(c) return null;
+        return apiCall('getRequests',{rev:''},AUTH_TOKEN,true).then(function(res){
+          if(res&&res.ok&&!res.same) cPut('req',{req:res,sum:null});
+        }).catch(function(){});
+      });
+    }
+  }
+  // v18: держим контейнер Apps Script тёплым. Если скриптом не пользовались
+  // несколько минут, Google его гасит, и следующий запрос ждёт запуска —
+  // в «Выполнениях» это время не видно, а оператор ловит «нет связи».
+  setInterval(function(){
+    if(document.visibilityState!=='visible') return;
+    if(_net||_bgBusy) return;
+    if(Date.now()-_lastAct < 120000) return;         // работали недавно — не нужно
+    apiCall('getMoscowBalance',{},AUTH_TOKEN,true).catch(function(){});
+  },150000);
+
   if(!DB.length) refreshDB(true);   // клиентов нет вообще (первая установка) — тянем сразу
   if(!Object.keys(CUR).length) curLoad();
   applyI18n();
   buildTabs();
+  setTimeout(warmOnce, 2000);       // страховка, если экрана Москвы нет
 </script>
 </body>
 </html>

@@ -395,6 +395,7 @@
       <div class="field"><label data-i18n="lblNote">Комментарий</label><input type="text" id="tNote" data-i18n-ph="phOptional" placeholder="необязательно"></div>
       <div class="field" id="tOpDateField"><label data-i18n="lblOpDate">Дата (пусто = сегодня)</label><input type="date" id="tOpDate"></div>
       <button class="submit purple" id="tSubmit" onclick="tSubmit()" data-i18n="doTransfer">Выполнить перевод</button>
+      <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="tClear()" data-i18n="clearForm">Очистить</button>
     </div>
     <div class="card feed"><h2 data-i18n="histTransfers">История переводов</h2><div id="tFeed"><div class="loading">…</div></div></div>
   </div>
@@ -459,6 +460,7 @@
         <div class="seg"><div class="seg-btn green sel" id="segHak" onclick="sType('hakdor')" data-i18n="hak">Хакдор (+)</div><div class="seg-btn red" id="segKarz" onclick="sType('karzdor')" data-i18n="karz">Карздор (−)</div></div>
         <div class="field"><label>Сумма ₽</label><input type="text" id="sSum" class="money" placeholder="0" inputmode="numeric"></div>
         <button class="submit" id="sSubmit" onclick="sSubmit()" data-i18n="writeStart">Записать остаток</button>
+        <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="sClear()" data-i18n="clearForm">Очистить</button>
       </div>
       <div class="card">
         <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;" data-i18n="csHint">👥 Сверка клиентов…</div>
@@ -623,6 +625,9 @@
   ru:{
     yes:'Да', no:'Нет', save:'Сохранить', saved:'Сохранено', err:'Ошибка', connLost:'Нет связи',
     slowNet:'Связь медленная',
+    connBroke:'Связь прервалась — проверьте историю перед повтором',
+    alreadySaved:'Уже записано',
+    clearForm:'Очистить',
     loading:'Загрузка…', refreshed:'Обновлено', copy:'Копия', copied:'Скопировано', copyFail:'Не скопировалось',
     none:'Нет', newClientBtn:'+ Новый клиент', newClientQ:'Новый клиент «{n}»?', clientAdded:'Клиент добавлен',
     dupWarn:'В базе есть похожий — выберите его:', dupCreate:'+ Всё равно создать нового',
@@ -714,6 +719,9 @@
   uz:{
     yes:'Ҳа', no:'Йўқ', save:'Сақлаш', saved:'Сақланди', err:'Хато', connLost:'Алоқа узилди',
     slowNet:'Алоқа секин',
+    connBroke:'Алоқа узилди — такрорлашдан олдин тарихни текширинг',
+    alreadySaved:'Аллақачон ёзилган',
+    clearForm:'Тозалаш',
     loading:'Юкланмоқда…', refreshed:'Янгиланди', copy:'Нусха', copied:'Нусха олинди', copyFail:'Нусха олинмади',
     none:'Йўқ', newClientBtn:'+ Янги мижоз', newClientQ:'Янги мижоз «{n}»?', clientAdded:'Мижоз қўшилди',
     dupWarn:'Базада ўхшаш мижоз бор — уни танланг:', dupCreate:'+ Барибир янги яратиш',
@@ -877,6 +885,17 @@
   // на устаревшие деньги, не остаётся — и таймеры свежести больше не нужны.
   // ⟳ шлёт пустую ревизию: сервер обязан пересчитать.
   function revOf_(c){ return (!_forceFresh && c && c.rev) ? c.rev : ''; }
+  // v17: ОКНО ТИШИНЫ. Ревизия сделала кэш честным, но проверять её — это всё
+  // равно поход на сервер, а он стоит 1,5-4 секунды. Если проверяли только что,
+  // не ходим вовсе: экран рисуется из кэша мгновенно и молча.
+  // Любая запись и ⟳ окно сбрасывают, поэтому устареть оно не успевает.
+  var QUIET_MS=30000, _quiet={};
+  function quietOk_(k){
+    if(_forceFresh) return false;
+    return !!(_quiet[k] && (Date.now()-_quiet[k])<QUIET_MS);
+  }
+  function quietSet_(k){ _quiet[k]=Date.now(); }
+  function quietClear_(){ _quiet={}; }
   // true — пришли новые данные, применяем; false — «у тебя актуально».
   function revNew_(res){ return !!(res && res.ok && !res.same); }
   // Запись прошла -> локальные кэши заведомо старые, сносим их.
@@ -896,7 +915,7 @@
         localStorage.removeItem(k);
       }
     }catch(e){}
-    BAL_TS=0; OV_TS=0;
+    BAL_TS=0; OV_TS=0; quietClear_();
   }
   // v13: список клиентов живёт на телефоне — автокомплит работает сразу, не ждёт сеть
   var DB=cGet('db')||[];
@@ -1178,10 +1197,12 @@
     if(key===mLastKey&&now-mLastTime<4000){toast(t('writingWait'),true); return;}
     mLastKey=key; mLastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
     var btn=document.getElementById('mSubmit'); btn.disabled=true; btn.textContent=t('writing');
+    mOptimistic(p);   // строка появляется в ленте сразу, не дожидаясь сервера
     apiCall('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('save');
-      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(); } else toast(res.error||t('err'),true);
-    }).catch(function(){btn.disabled=false; btn.textContent=t('save'); toast(t('connLost'),true);});
+      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res.screen); }
+      else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
+    }).catch(function(){btn.disabled=false; btn.textContent=t('save'); toast(t('connBroke'),true); mOpen();});
   }
   function mShowOk(p){
     var label=p.action==='oldim'?'Олдим ＋':p.action==='berdim'?'Бердим －':'Обмен',det='';
@@ -1216,22 +1237,54 @@
   var mGen=0;
   function mOpen(){
     var c=cGet('moscow'); if(c) mApply(c);           // мгновенно из кэша, до всякой сети
+    if(c && quietOk_('moscow')) return;              // проверяли только что — в сеть не идём
     var g=++mGen;
     // тихо, если показывать уже есть что: оператор не ждёт, полоска не нужна
     apiCall('openMoscow',{rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(res){
       if(g!==mGen) return;                           // пришёл устаревший ответ — выбрасываем
       if(!res||!res.ok){ if(!c) toast((res&&res.error)||t('err'),true); return; }
+      quietSet_('moscow');
       if(!revNew_(res)) return;                      // {same:true} — кэш верен, перерисовывать нечего
       cPut('moscow',res); mApply(res);               // свежее — поверх (фильтр по текущей кнопке внутри mApply)
     }).catch(function(){ if(g===mGen && !c) toast(t('connLost'),true); });
   }
-  // после сохранения: период всегда на «Бугун» + весь экран одним запросом (openMoscow)
-  function mAfterSave(){
-    scrDrop_();                                      // запись -> кэш свежести сбросить
+  // v17: строку рисуем СРАЗУ по нажатию, до ответа сервера. Ожидание перестаёт
+  // выглядеть как «ничего не произошло». Ответ придёт и перезапишет настоящей.
+  function mOptimistic(p){
+    var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
+    var isOb=(p.action==='obmen');
+    var rub=isOb?(p.dir==='RU'?-p.exRub:p.exRub):((p.action==='oldim'?1:-1)*(p.usd>0?0:p.rub));
+    var usd=isOb?(p.dir==='RU'?p.exUsd:-p.exUsd):((p.action==='oldim'?1:-1)*(p.usd||0));
+    var it={_ts:d.getTime(), datetime:z(d.getHours())+':'+z(d.getMinutes()),
+            action:isOb?'Обмен':(p.action==='oldim'?'Олдим':'Бердим'),
+            name:isOb?'Обмен':(p.name||''), rub:rub, usd:usd,
+            rate:p.rate||'', note:p.note||'', operator:USER_NAME, _pending:true};
+    mFeedPeriodVal='today';
+    var tb=document.getElementById('mFeedToday'), yb=document.getElementById('mFeedYesterday');
+    if(tb) tb.classList.add('sel'); if(yb) yb.classList.remove('sel');
+    mRenderFeed([it].concat(mFeedItems||[]));
+  }
+  // после сохранения: экран приходит ВМЕСТЕ с ответом на запись — второго
+  // похода на сервер больше нет. Кэш стираем только когда есть чем заменить.
+  function mAfterSave(screen){
     mFeedPeriodVal='today';
     document.getElementById('mFeedToday').classList.add('sel');
     document.getElementById('mFeedYesterday').classList.remove('sel');
-    mOpen();
+    BAL_TS=0; OV_TS=0;                                // отчёты обязаны освежиться
+    if(screen&&screen.ok){ cPut('moscow',screen); mApply(screen); scrDropOther_('moscow'); }
+    else { scrDrop_(); mOpen(); }                     // старый сервер — как раньше
+  }
+  // стереть кэш всех экранов, КРОМЕ только что обновлённого
+  function scrDropOther_(keep){
+    try{
+      for(var i=localStorage.length-1;i>=0;i--){
+        var k=localStorage.key(i);
+        if(!k||k.indexOf('c_')!==0) continue;
+        if(k==='c_db'||k==='c_cur'||k==='c_'+keep) continue;
+        if(k.indexOf('c_mo_')===0){ var v=cGet(k.slice(2)); if(v&&v.source==='archive') continue; }
+        localStorage.removeItem(k);
+      }
+    }catch(e){}
   }
   var mFeedPeriodVal='today';
   function mFeedPeriod(p){
@@ -1409,12 +1462,26 @@
       if(key===st.lastKey&&now-st.lastTime<4000){toast(t('createWait'),true); return;}
       st.lastKey=key; st.lastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
       var btn=id('Submit'); btn.disabled=true; btn.textContent=t('creating');
+      optimistic(p);   // строка в ленте сразу, до ответа сервера
       apiCall('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('createDeal');
-        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(); }
-        else toast(res.error||t('err'),true);
-      }).catch(function(){btn.disabled=false; btn.textContent=t('createDeal'); toast(t('connLost'),true);});
+        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res.screen); }
+        else { toast(res.error||t('err'),true); reload(); }
+      }).catch(function(){btn.disabled=false; btn.textContent=t('createDeal'); toast(t('connBroke'),true); reload();});
     }
+    // мгновенная строка: ждать сервер, глядя на неизменившуюся ленту, — худшее
+    function optimistic(p){
+      var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
+      var sign=(p.action==='oldim')?1:-1;
+      st.feedPeriod='today';
+      var tb=id('FeedToday'), yb=id('FeedYesterday'), wb=id('FeedWeek');
+      if(tb) tb.classList.add('sel'); if(yb) yb.classList.remove('sel'); if(wb) wb.classList.remove('sel');
+      renderFeed([{ _ts:d.getTime(), datetime:z(d.getHours())+':'+z(d.getMinutes()),
+        action:(p.action==='oldim'?'Олдим':'Бердим'), name:p.name||'',
+        usd:sign*(p.usd||0), rate:p.rate||'', rub:p.rub||0, profit:0,
+        status:'заявка', operator:USER_NAME, _pending:true }].concat(st.feedItems||[]));
+    }
+    function reload(){ if(pfx==='u') uOpen(); else gOpen(); }
 
     function reset(){
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.last='';
@@ -1439,15 +1506,21 @@
     }
     // после сохранения/исполнения: период на «Бугун» (если переключатель есть)
     // + весь экран одним запросом вместо пачки refresh
-    function afterSave(){
+    // v17: экран приходит вместе с ответом на запись — второго похода нет
+    function afterSave(screen){
       var t=document.getElementById(pfx+'FeedToday');
       if(t){
         st.feedPeriod='today'; t.classList.add('sel');
         var y=document.getElementById(pfx+'FeedYesterday'); if(y)y.classList.remove('sel');
         var w=document.getElementById(pfx+'FeedWeek'); if(w)w.classList.remove('sel');
       }
-      scrDrop_();                                     // запись -> кэш свежести сбросить
-      if(pfx==='u') uOpen(); else gOpen();
+      BAL_TS=0; OV_TS=0;
+      if(screen&&screen.ok){
+        var key=(pfx==='u')?'uzb':('reg_'+(screen.region||getRegionName()));
+        cPut(key,screen);
+        scrDropOther_(key);
+        if(pfx==='u') uApply(screen); else gApplyCached(screen);
+      } else { scrDrop_(); reload(); }                // старый сервер — как раньше
     }
     function curLabels(){
       var c=cur(getRegionName());
@@ -1490,6 +1563,7 @@
     }
     function renderFeed(items){
       markToday(items);
+      st.feedItems=items||[];        // нужен для мгновенной строки при следующей записи
       var box=id('Feed');
       if(!items||!items.length){box.innerHTML='<div class="loading">'+t('noDeals')+'</div>'; return;}
       var h=''; items.forEach(function(it){
@@ -1568,10 +1642,12 @@
   function uOpen(){
     updateExecAllVisibility();
     var c=cGet('uzb'); if(c) uApply(c);
+    if(c && quietOk_('uzb')) return;                 // проверяли только что — в сеть не идём
     var g=UZB.gen();
     apiCall('openUzb',{rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(res){
       if(!UZB.genOk(g)) return;                      // устаревший ответ — мимо
       if(!res||!res.ok){ if(!c) toast((res&&res.error)||t('err'),true); return; }
+      quietSet_('uzb');
       if(!revNew_(res)) return;                      // кэш верен
       cPut('uzb',res); uApply(res);
     }).catch(function(){ if(UZB.genOk(g) && !c) toast(t('connLost'),true); });
@@ -1602,11 +1678,13 @@
   function gOpen(init){
     if(!init && !gCurRegion) return;
     var c=gCurRegion?cGet('reg_'+gCurRegion):null; if(c) gApplyCached(c);
+    if(c && quietOk_('reg_'+gCurRegion)) return;     // проверяли только что — в сеть не идём
     var g=REG.gen();
     // ревизия берётся из кэша ИМЕННО этого региона — у каждого она своя
     apiCall('openRegion',{region:gCurRegion||'',rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(res){
       if(!REG.genOk(g)) return;                      // устаревший ответ (в т.ч. от другого региона) — мимо
       if(!res||!res.ok){ if(!c) toast((res&&res.error)||t('err'),true); return; }
+      quietSet_('reg_'+(res.region||gCurRegion));
       if(!revNew_(res)) return;                      // кэш этого региона верен
       if(res.region) cPut('reg_'+res.region,res);
       if(res.regions){
@@ -1800,26 +1878,45 @@
     var box=document.getElementById('tFeed');
     if(!res||!res.ok){ box.innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
     if(!res.items.length){ box.innerHTML='<div class="loading">'+t('noTransfers')+'</div>'; return; }
+    // v15: сервер отдаёт уже склеенную пару — одна строка на перевод
     var h='';
     res.items.forEach(function(it){
-      var cls=it.sum>0?'plus':(it.sum<0?'minus':'');
-      var sign=it.sum>0?'+':(it.sum<0?'−':'');
-      h+='<div class="op-item"'+feedClick(it.name,'transfer')+'><div class="op-left"><div class="nm">'+esc(it.name)+'</div><div class="mt">'+it.datetime+' · '+esc(it.note||'')+' · '+esc(it.operator)+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.sum))+' ₽</div></div>';
+      var meta=it.datetime+(it.memo?(' · '+esc(it.memo)):'')+' · '+esc(it.operator);
+      h+='<div class="op-item"'+feedClick(it.from,'transfer')+'><div class="op-left">'+
+         '<div class="nm">'+esc(it.from)+' → '+esc(it.to)+'</div>'+
+         '<div class="mt">'+meta+'</div></div>'+
+         '<div class="op-amt">'+fmt(Math.abs(it.sum))+' ₽</div></div>';
     });
     box.innerHTML=h;
   }
+  // opId живёт до успешной записи: повтор после обрыва связи шлёт ТОТ ЖЕ id,
+  // и сервер отвечает «уже записано» вместо второго перевода
+  var tOpId='';
   function tSubmit(){
     var from=document.getElementById('tFrom').value.trim(), to=document.getElementById('tTo').value.trim(), sum=moneyVal('tSum');
     if(!from||!to){toast(t('pickBoth'),true); return;}
     if(sum<=0){toast(t('enterSum'),true); return;}
+    if(!tOpId) tOpId='tr_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     askConfirm(t('transferQ',{f:from,t:to}), function(){
       var btn=document.getElementById('tSubmit'); btn.disabled=true; btn.textContent='…';
-      apiCall('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||''}},AUTH_TOKEN).then(function(res){
+      apiCall('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||'',opId:tOpId}},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('doTransfer');
-        if(res.ok){showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽'); scrDrop_(); ['tFrom','tTo','tSum','tNote','tOpDate'].forEach(function(id){document.getElementById(id).value='';}); tRefreshFeed();}
+        if(res.ok){
+          if(!res.dup) showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽');
+          else toast(t('alreadySaved'));
+          tOpId=''; scrDrop_(); tClear(); tRefreshFeed();
+        }
         else toast(res.error||t('err'),true);
-      }).catch(function(){btn.disabled=false; btn.textContent=t('doTransfer'); toast(t('connLost'),true);});
+      }).catch(function(){
+        btn.disabled=false; btn.textContent=t('doTransfer');
+        toast(t('connBroke'),true);
+        tRefreshFeed();          // сразу показываем историю: прошло или нет
+      });
     });
+  }
+  function tClear(){
+    ['tFrom','tTo','tSum','tNote','tOpDate'].forEach(function(id){var e=document.getElementById(id); if(e) e.value='';});
+    tOpId='';
   }
 
   /* ===== ПРАВКИ ===== */
@@ -1978,16 +2075,22 @@
   }
   var sTypeVal='hakdor';
   function sType(t){sTypeVal=t; document.getElementById('segHak').classList.toggle('sel',t==='hakdor'); document.getElementById('segKarz').classList.toggle('sel',t==='karzdor');}
+  var sOpId='';
+  function sClear(){
+    ['sName','sSum'].forEach(function(id){var e=document.getElementById(id); if(e) e.value='';});
+    sOpId='';
+  }
   function sSubmit(){
     var name=document.getElementById('sName').value.trim(), sum=moneyVal('sSum');
     if(!name){toast(t('pickClient'),true); return;}
     if(sum<=0){toast(t('enterSum'),true); return;}
+    if(!sOpId) sOpId='st_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     var btn=document.getElementById('sSubmit'); btn.disabled=true; btn.textContent='…';
-    apiCall('saveStartBalance',{payload:{name:name,sum:sum,type:sTypeVal}},AUTH_TOKEN).then(function(res){
+    apiCall('saveStartBalance',{payload:{name:name,sum:sum,type:sTypeVal,opId:sOpId}},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('writeStart');
-      if(res.ok){showOk(t('startSaved'),esc(name)+' · '+(sTypeVal==='hakdor'?'+':'−')+fmt(sum)+' ₽'); scrDrop_(); document.getElementById('sName').value=''; document.getElementById('sSum').value='';}
+      if(res.ok){ if(!res.dup) showOk(t('startSaved'),esc(name)+' · '+(sTypeVal==='hakdor'?'+':'−')+fmt(sum)+' ₽'); else toast(t('alreadySaved')); scrDrop_(); sClear(); }
       else toast(res.error||t('err'),true);
-    }).catch(function(){btn.disabled=false; btn.textContent=t('writeStart'); toast(t('connLost'),true);});
+    }).catch(function(){btn.disabled=false; btn.textContent=t('writeStart'); toast(t('connBroke'),true);});
   }
   function rcSubmit(){
     askConfirm(t('rcQ'), function(){
@@ -2139,12 +2242,28 @@
   var dlReports={};
   function dlLoad(){
     document.getElementById('dlList').innerHTML='<div class="loading">…</div>';
-    dlReports={};   // тексты заранее не грузим — строятся при раскрытии клиента
+    dlReports={};
     apiCall('getDailyClients',{day:dlDayVal},AUTH_TOKEN).then(function(res){
       if(!res||!res.ok){ document.getElementById('dlList').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       dlClients=res.clients||[];     // сохраняем в память
       dlRender(dlClients);
+      dlPreload();                   // тексты всех клиентов дня — одним запросом
     }).catch(function(){ document.getElementById('dlList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+  }
+  // v17: на сервере есть готовая getDailyReports — она строит отчёты ВСЕХ
+  // клиентов дня за один скан листа. Фронт её не звал и дёргал getClientReport
+  // на каждого отдельно: десять клиентов — десять походов подряд.
+  function dlPreload(){
+    if(!dlClients.length) return;
+    apiCall('getDailyReports',{day:dlDayVal,lang:dlLangVal},AUTH_TOKEN,true).then(function(res){
+      if(!res||!res.ok||!res.reports) return;
+      for(var nm in res.reports){
+        dlCache[nm]={text:res.reports[nm].text, phone:res.reports[nm].phone||''};
+      }
+      if(dlOpenName && dlCache[dlOpenName]){       // карточка уже раскрыта — заполнить
+        dlShowText(dlOpenName, dlCache[dlOpenName].text, dlCache[dlOpenName].phone);
+      }
+    }).catch(function(){});
   }
   function dlRender(clients){
     clients=clients||dlClients;     // если не передали — из памяти
@@ -2352,25 +2471,38 @@
     if(['operator2','admin','report'].indexOf(USER_ROLE)===-1) return '';
     return ' style="cursor:pointer;" onclick="openClient(\''+esc1+'\',\''+from+'\')"';
   }
-  /* карточка «остаток клиента» — свежие данные, без истории */
+  /* карточка «остаток клиента» */
+  // v17: рисуем СРАЗУ из уже загруженного баланса клиентов — там есть и сумма,
+  // и число сделок, и дата последней. Раньше каждый тап уходил на сервер и
+  // сканировал весь лист ради одной цифры. Сервер теперь только уточняет, молча.
+  function qbPaint_(b, count, last, note){
+    var el=document.getElementById('qbSum');
+    el.textContent=(b>0?'+':b<0?'−':'')+fmt(Math.abs(b))+' ₽';
+    el.style.color=b>0?'var(--plus)':(b<0?'var(--minus)':'var(--txt)');
+    document.getElementById('qbSub').textContent=(b>0?t('weOweYou'):b<0?t('youOwe'):t('even'));
+    document.getElementById('qbMeta').textContent=note||(count
+      ? (count+' '+dealsW(count)+(last?' · '+t('qbLast')+' '+last:''))
+      : t('qbNoOps'));
+  }
+  function qbFromCache_(name){
+    for(var i=0;i<BAL_DATA.length;i++){
+      if(BAL_DATA[i].name===name) return BAL_DATA[i];
+    }
+    return null;
+  }
   function quickBal(name){
     document.getElementById('qbName').textContent=name;
-    document.getElementById('qbSum').textContent='…';
-    document.getElementById('qbMeta').textContent='';
     document.getElementById('qbWrap').classList.add('show');
-    apiCall('getClientQuickBalance',{name:name},AUTH_TOKEN).then(function(r){
-      if(!r||!r.ok){ document.getElementById('qbSum').textContent='—';
-        document.getElementById('qbMeta').textContent=(r&&r.error)||t('err'); return; }
-      var b=r.balance||0;
-      var el=document.getElementById('qbSum');
-      el.textContent=(b>0?'+':b<0?'−':'')+fmt(Math.abs(b))+' ₽';
-      el.style.color=b>0?'var(--plus)':(b<0?'var(--minus)':'var(--txt)');
-      document.getElementById('qbSub').textContent=(b>0?t('weOweYou'):b<0?t('youOwe'):t('even'));
-      document.getElementById('qbMeta').textContent=r.count
-        ? (r.count+' '+dealsW(r.count)+(r.last?' · '+t('qbLast')+' '+r.last:''))
-        : t('qbNoOps');
-    }).catch(function(){ document.getElementById('qbSum').textContent='—';
-      document.getElementById('qbMeta').textContent=t('connLost'); });
+    var hit=qbFromCache_(name);
+    if(hit) qbPaint_(hit.balance||0, hit.count||0, hit.last||'');
+    else { document.getElementById('qbSum').textContent='…';
+           document.getElementById('qbMeta').textContent=''; }
+    apiCall('getClientQuickBalance',{name:name},AUTH_TOKEN,!!hit).then(function(r){
+      if(!r||!r.ok){ if(!hit){ document.getElementById('qbSum').textContent='—';
+        document.getElementById('qbMeta').textContent=(r&&r.error)||t('err'); } return; }
+      qbPaint_(r.balance||0, r.count||0, r.last||'');
+    }).catch(function(){ if(!hit){ document.getElementById('qbSum').textContent='—';
+      document.getElementById('qbMeta').textContent=t('connLost'); } });
   }
   function openClient(name, from){
     CL_BACK=from||'reports';
@@ -2730,7 +2862,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 15;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
+  var APP_VERSION = 17;   // ← поднимать ВМЕСТЕ с version.json при каждом релизе
   (function(){
     // номер версии внизу экрана (для сверки глазами); bottom:74px — чтобы не прятался под кнопкой ⟳
     var v=document.createElement('div');
@@ -2771,6 +2903,7 @@
     var now=Date.now();
     if(now-_visLast<30000) return;
     _visLast=now;
+    quietClear_();     // вернулись из фона — окно тишины больше не действует
     refreshDB(true);   // клиенты могли добавиться с другого устройства
     var cur=document.querySelector('.tab.sel');
     var name=cur?cur.getAttribute('data-s'):null;

@@ -879,30 +879,14 @@
   }
   function apiWrite(action,args,token){ return apiCall(action,args,token); }   // повтор теперь внутри
 
-  // v18: ФОНОВАЯ ДОГРУЗКА ПО ОДНОМУ И ТОЛЬКО В ПРОСТОЕ.
-  // Прежний прогрев тянул все экраны ОДНИМ вызовом на 41 КБ и четыре секунды,
-  // занимая очередь: Apps Script выполняет запросы одного пользователя строго
-  // по одному, и всё, что оператор нажимал в это время, ждало прогрев.
-  // Теперь задачи идут по очереди, и следующая берётся, только если оператор
-  // ничего не делал полторы секунды и нет активных запросов.
-  var _bg=[], _bgBusy=false;
-  function bgAdd(name,fn){
-    for(var i=0;i<_bg.length;i++) if(_bg[i].name===name) return;   // уже в очереди
-    _bg.push({name:name,fn:fn});
-  }
-  function bgDrop(name){
-    for(var i=_bg.length-1;i>=0;i--) if(_bg[i].name===name) _bg.splice(i,1);
-  }
-  function bgTick(){
-    if(_bgBusy || !_bg.length) return;
-    if(_net) return;                                  // идёт запрос оператора — не мешаем
-    if(Date.now()-_lastAct < 1500) return;            // оператор только что нажимал
-    var job=_bg.shift(); _bgBusy=true;
-    var fin=function(){ _bgBusy=false; };
-    try{ var p=job.fn(); if(p&&p.then) p.then(fin,fin); else fin(); }
-    catch(e){ fin(); }
-  }
-  setInterval(bgTick,1200);
+  // v20: ФОНОВАЯ ДОГРУЗКА УБРАНА.
+  // Она брала следующий экран, если оператор полторы секунды ничего не делал.
+  // Но полторы секунды — это обычная пауза посмотреть на экран: оператор замер,
+  // фон начал качать, оператор тапнул — и его запрос встал в очередь за фоновым.
+  // Apps Script выполняет запросы одного пользователя строго по одному, поэтому
+  // прогрев, задуманный как ускорение, регулярно тормозил работу.
+  // Заглушки оставлены, чтобы старые вызовы не падали.
+  function bgAdd(){} function bgDrop(){}
   var AUTH_TOKEN=localStorage.getItem('kassa_token')||'';
   var USER_ROLE=localStorage.getItem('kassa_role')||'';
   var USER_NAME=localStorage.getItem('kassa_name')||'';
@@ -1248,10 +1232,9 @@
     if(key===mLastKey&&now-mLastTime<4000){toast(t('writingWait'),true); return;}
     mLastKey=key; mLastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
     var btn=document.getElementById('mSubmit'); btn.disabled=true; btn.textContent=t('writing');
-    mOptimistic(p);   // строка появляется в ленте сразу, не дожидаясь сервера
     apiWrite('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('save');
-      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res.screen); }
+      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(); }
       else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
     }).catch(function(){btn.disabled=false; btn.textContent=t('save'); toast(t('connBroke'),true); mOpen();});
   }
@@ -1295,48 +1278,23 @@
       if(g!==mGen) return;                           // пришёл устаревший ответ — выбрасываем
       if(!res||!res.ok){ if(!c) toast((res&&res.error)||t('err'),true); return; }
       quietSet_('moscow');
-      warmOnce();                                    // Москва отрисована — ставим остальное в фон
-      if(!revNew_(res)) return;                      // {same:true} — кэш верен, перерисовывать нечего
+      if(!revNew_(res)) return;                    // {same:true} — кэш верен, перерисовывать нечего
       cPut('moscow',res); mApply(res);               // свежее — поверх (фильтр по текущей кнопке внутри mApply)
     }).catch(function(){ if(g===mGen && !c) toast(t('connLost'),true); });
   }
-  // v17: строку рисуем СРАЗУ по нажатию, до ответа сервера. Ожидание перестаёт
-  // выглядеть как «ничего не произошло». Ответ придёт и перезапишет настоящей.
-  function mOptimistic(p){
-    var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
-    var isOb=(p.action==='obmen');
-    var rub=isOb?(p.dir==='RU'?-p.exRub:p.exRub):((p.action==='oldim'?1:-1)*(p.usd>0?0:p.rub));
-    var usd=isOb?(p.dir==='RU'?p.exUsd:-p.exUsd):((p.action==='oldim'?1:-1)*(p.usd||0));
-    var it={_ts:d.getTime(), datetime:z(d.getHours())+':'+z(d.getMinutes()),
-            action:isOb?'Обмен':(p.action==='oldim'?'Олдим':'Бердим'),
-            name:isOb?'Обмен':(p.name||''), rub:rub, usd:usd,
-            rate:p.rate||'', note:p.note||'', operator:USER_NAME, _pending:true};
-    mFeedPeriodVal='today';
-    var tb=document.getElementById('mFeedToday'), yb=document.getElementById('mFeedYesterday');
-    if(tb) tb.classList.add('sel'); if(yb) yb.classList.remove('sel');
-    mRenderFeed([it].concat(mFeedItems||[]));
-  }
-  // после сохранения: экран приходит ВМЕСТЕ с ответом на запись — второго
-  // похода на сервер больше нет. Кэш стираем только когда есть чем заменить.
-  function mAfterSave(screen){
+  // v20: ПРЕДПОКАЗ СТРОКИ УБРАН.
+  // Строка рисовалась сразу по нажатию, до ответа сервера. Но у второй заявки
+  // подряд прибыль считается на сервере по FIFO, а предпоказ рисовал полную
+  // сумму — оператор видел неверное число и не мог отличить его от настоящего.
+  // Цифра важнее ощущения скорости.
+  //
+  // После сохранения перечитываем экран честно, с сервера.
+  function mAfterSave(){
     mFeedPeriodVal='today';
     document.getElementById('mFeedToday').classList.add('sel');
     document.getElementById('mFeedYesterday').classList.remove('sel');
     BAL_TS=0; OV_TS=0;                                // отчёты обязаны освежиться
-    if(screen&&screen.ok){ cPut('moscow',screen); mApply(screen); scrDropOther_('moscow'); }
-    else { scrDrop_(); mOpen(); }                     // старый сервер — как раньше
-  }
-  // стереть кэш всех экранов, КРОМЕ только что обновлённого
-  function scrDropOther_(keep){
-    try{
-      for(var i=localStorage.length-1;i>=0;i--){
-        var k=localStorage.key(i);
-        if(!k||k.indexOf('c_')!==0) continue;
-        if(k==='c_db'||k==='c_cur'||k==='c_reglist'||k==='c_'+keep) continue;
-        if(k.indexOf('c_mo_')===0){ var v=cGet(k.slice(2)); if(v&&v.source==='archive') continue; }
-        localStorage.removeItem(k);
-      }
-    }catch(e){}
+    scrDrop_(); quietClear_(); mOpen();
   }
   var mFeedPeriodVal='today';
   function mFeedPeriod(p){
@@ -1514,32 +1472,13 @@
       if(key===st.lastKey&&now-st.lastTime<4000){toast(t('createWait'),true); return;}
       st.lastKey=key; st.lastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
       var btn=id('Submit'); btn.disabled=true; btn.textContent=t('creating');
-      optimistic(p);   // строка в ленте сразу, до ответа сервера
       apiWrite('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('createDeal');
-        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res.screen); }
+        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(); }
         else { toast(res.error||t('err'),true); reload(); }
       }).catch(function(){btn.disabled=false; btn.textContent=t('createDeal'); toast(t('connBroke'),true); reload();});
     }
-    // мгновенная строка: ждать сервер, глядя на неизменившуюся ленту, — худшее
-    function optimistic(p){
-      var d=new Date(), z=function(n){return (n<10?'0':'')+n;};
-      var sign=(p.action==='oldim')?1:-1;
-      // период трогаем ТОЛЬКО если переключатель существует. У Узбекистана его
-      // нет, и выставленный 'today' заставлял фильтр выбрасывать вчерашние
-      // строки — лента схлопывалась до одного дня вместо двух.
-      var tb=id('FeedToday'), yb=id('FeedYesterday'), wb=id('FeedWeek');
-      if(tb){
-        st.feedPeriod='today';
-        tb.classList.add('sel');
-        if(yb) yb.classList.remove('sel');
-        if(wb) wb.classList.remove('sel');
-      }
-      renderFeed([{ _ts:d.getTime(), datetime:z(d.getHours())+':'+z(d.getMinutes()),
-        action:(p.action==='oldim'?'Олдим':'Бердим'), name:p.name||'',
-        usd:sign*(p.usd||0), rate:p.rate||'', rub:p.rub||0, profit:0,
-        status:'заявка', operator:USER_NAME, _pending:true }].concat(st.feedItems||[]));
-    }
+    // v20: предпоказ строки убран — см. пояснение у mAfterSave.
     function reload(){ if(pfx==='u') uOpen(); else gOpen(); }
 
     function reset(){
@@ -1564,9 +1503,10 @@
       });
     }
     // после сохранения/исполнения: период на «Бугун» (если переключатель есть)
-    // + весь экран одним запросом вместо пачки refresh
-    // v17: экран приходит вместе с ответом на запись — второго похода нет
-    function afterSave(screen){
+    // и честное перечитывание экрана с сервера.
+    // v20: экран в ответе на запись больше не приходит — запись отвечает {ok:true}
+    // и заканчивается, не собирая ленту и балансы.
+    function afterSave(){
       var t=document.getElementById(pfx+'FeedToday');
       if(t){
         st.feedPeriod='today'; t.classList.add('sel');
@@ -1574,12 +1514,7 @@
         var w=document.getElementById(pfx+'FeedWeek'); if(w)w.classList.remove('sel');
       }
       BAL_TS=0; OV_TS=0;
-      if(screen&&screen.ok){
-        var key=(pfx==='u')?'uzb':('reg_'+(screen.region||getRegionName()));
-        cPut(key,screen);
-        scrDropOther_(key);
-        if(pfx==='u') uApply(screen); else gApplyCached(screen);
-      } else { scrDrop_(); reload(); }                // старый сервер — как раньше
+      scrDrop_(); quietClear_(); reload();
     }
     function curLabels(){
       var c=cur(getRegionName());
@@ -2237,7 +2172,7 @@
     if(name==='balance'){ bgDrop('bal'); balLoad(); }
     if(name==='daily') dlLoad();
     if(name==='overview'){ bgDrop('ovw'); ovLoad(); }
-    if(name==='monthly') moInit();
+    if(name==='monthly'){ bgDrop('mo'+(document.getElementById('moMonth').value||'')); moInit(); }
     if(name==='history') thInit();
   }
   function ovLoad(){
@@ -2991,7 +2926,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 19;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 20;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -3227,70 +3162,22 @@
     // список уже есть — не лезем в очередь перед экраном, ждём 3 секунды
     if(DB.length) setTimeout(go,3000); else go();
   }
-  // v18: фоновая догрузка остальных экранов. Не одним тяжёлым вызовом, как
-  // было в v12-v13, а задачами по одной и только когда оператор ничего не
-  // делает. Тогда Москва открывается сразу, а к моменту захода в отчёты там
-  // уже всё готово — и при этом очередь ничем не забита.
-  var _warmed=false;
-  function warmOnce(){
-    if(_warmed) return; _warmed=true;
-    var r=USER_ROLE;
-    if(['operator2','admin','report'].indexOf(r)!==-1){
-      bgAdd('bal',function(){
-        if(_balC) return null;                       // уже есть с прошлого запуска
-        return apiCall('getClientsBalance',{rev:''},AUTH_TOKEN,true).then(function(res){
-          if(!res||!res.ok||res.same) return;
-          BAL_DATA=res.items||[];
-          _balC={rev:res.rev,items:BAL_DATA,totalPlus:res.totalPlus,totalMinus:res.totalMinus};
-          cPut('bal',_balC);
-        }).catch(function(){});
-      });
-      bgAdd('ovw',function(){
-        if(OV_DATA) return null;
-        return apiCall('getOverview',{rev:''},AUTH_TOKEN,true).then(function(res){
-          if(!res||!res.ok||res.same) return;
-          OV_DATA=res; cPut('ovw',res);
-        }).catch(function(){});
-      });
-      bgAdd('uzb',function(){
-        var c=cGet('uzb'); if(c) return null;
-        return apiCall('openUzb',{rev:''},AUTH_TOKEN,true).then(function(res){
-          if(res&&res.ok&&!res.same) cPut('uzb',res);
-        }).catch(function(){});
-      });
-      // регионы: сервер сам вернёт первый не-Узбекистан и список остальных
-      bgAdd('reg',function(){
-        return apiCall('openRegion',{region:'',rev:''},AUTH_TOKEN,true).then(function(res){
-          if(!res||!res.ok||res.same) return;
-          if(res.region) cPut('reg_'+res.region,res);
-          if(res.regions) cPut('reglist',res.regions);
-        }).catch(function(){});
-      });
-    }
-    if(['operator2','operator3','admin'].indexOf(r)!==-1){
-      bgAdd('req',function(){
-        var c=cGet('req'); if(c) return null;
-        return apiCall('getRequests',{rev:''},AUTH_TOKEN,true).then(function(res){
-          if(res&&res.ok&&!res.same) cPut('req',{req:res,sum:null});
-        }).catch(function(){});
-      });
-    }
-  }
-  // v18: держим контейнер Apps Script тёплым. Если скриптом не пользовались
-  // несколько минут, Google его гасит, и следующий запрос ждёт запуска —
-  // в «Выполнениях» это время не видно, а оператор ловит «нет связи».
-  setInterval(function(){
-    if(document.visibilityState!=='visible') return;
-    if(_net||_bgBusy) return;
-    if(Date.now()-_lastAct < 120000) return;         // работали недавно — не нужно
-    apiCall('getMoscowBalance',{},AUTH_TOKEN,true).catch(function(){});
-  },150000);
+  // v20: ПРОГРЕВ УБРАН ПОЛНОСТЬЮ.
+  // Он качал балансы, общее состояние, Узбекистан, регионы, заявки, три месяца
+  // Ойлика и до пятнадцати клиентских отчётов — свыше двадцати запросов, и все
+  // в ту же единственную очередь, по которой идут заявки. Экраны от этого
+  // открывались быстрее, но запись операции временами ждала по полтора десятка
+  // секунд. Деньги важнее отчётов.
+  // Осталось: кэш экранов (открытый один раз экран открывается мгновенно) и
+  // окно тишины.
+  //
+  // v20: прогрев контейнера тоже убран — это был ещё один запрос каждые
+  // две с половиной минуты, ради экономии, которую никто не заметил.
 
   if(!DB.length) refreshDB(true);   // клиентов нет вообще (первая установка) — тянем сразу
   if(!Object.keys(CUR).length) curLoad();
   applyI18n();
   buildTabs();
-  setTimeout(warmOnce, 2000);       // страховка, если экрана Москвы нет
 </script>
 </body>
 </html>

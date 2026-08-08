@@ -237,10 +237,23 @@
   .ac-item .apx{color:var(--muted); margin-right:5px;}
   .ac-warn{padding:12px; font-size:13px; color:#e5c07b;}
   .loading{text-align:center; color:var(--muted); padding:20px; font-size:13px;}
+  /* v21: сортировка в балансах клиентов */
+  .bsort{cursor:pointer; padding-bottom:2px; border-bottom:1.5px solid transparent;}
+  .bsort.sel{color:var(--txt); border-bottom-color:var(--accent);}
 </style>
 </head>
 <body>
 <div class="app">
+
+  <!-- v21: строка состояния данных. Видна ТОЛЬКО когда есть что сказать:
+       данные не сегодняшние или сеть не ответила. Свежие — строки нет вовсе.
+       Раньше на её месте выскакивал красный тост «нет связи», хотя данные
+       были — просто вчерашние. -->
+  <div id="dataBar" style="display:none;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 11px;margin-bottom:10px;font-size:11px;color:var(--muted);">
+    <span id="dataBarTxt" style="flex:1;"></span>
+    <span id="dataBarMs" style="color:var(--muted);opacity:.7;"></span>
+    <span onclick="appReload()" style="cursor:pointer;color:var(--accent);font-weight:700;white-space:nowrap;" data-i18n="updBtn">Янгилаш</span>
+  </div>
 
   <div class="tabs" id="tabs"></div>
 
@@ -513,6 +526,12 @@
         <div class="seg-btn green" id="balfHak" onclick="balFilter('hak')" data-i18n="balHakF">Ҳақдор</div>
         <div class="seg-btn red" id="balfKarz" onclick="balFilter('karz')" data-i18n="balKarzF">Қарздор</div>
       </div>
+      <div style="display:flex;gap:14px;font-size:11px;color:var(--muted);margin:2px 4px 10px;align-items:center;">
+        <span id="bs_sum"  class="bsort sel" onclick="balSetSort('sum')"  data-i18n="bsSum">сумма бўйича</span>
+        <span id="bs_date" class="bsort"     onclick="balSetSort('date')" data-i18n="bsDate">янгилиги</span>
+        <span id="bs_name" class="bsort"     onclick="balSetSort('name')" data-i18n="bsName">исм</span>
+        <span id="bs_dead" class="bsort" style="margin-left:auto;" onclick="balSetSort('dead')" data-i18n="bsDead">ухлаётган</span>
+      </div>
       <div id="balList"><div class="loading">…</div></div>
     </div>
     <div id="repPane-client" class="hidden">
@@ -613,7 +632,7 @@
   <div id="qbSum" style="font-size:28px;font-weight:800;margin-top:6px;">…</div>
   <div id="qbSub" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
   <div id="qbMeta" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
-  <div class="btns"><button class="no" onclick="document.getElementById('qbWrap').classList.remove('show')" data-i18n="close" style="flex:1;">Ёпиш</button></div></div></div>
+  <div class="btns"><button class="no" onclick="document.getElementById('qbWrap').classList.remove('show')" data-i18n="close" style="flex:1;">Ёпиш</button><button class="yes" id="qbFull" style="flex:1;display:none;" onclick="qbOpenFull()" data-i18n="qbFull">Тўлиқ ҳисобот</button></div></div></div>
 <div class="confirm-wrap" id="curWrap"><div class="confirm-card" style="text-align:left;"><div class="sum-title" data-i18n="curQ" style="text-align:center;">Валюта региона</div>
   <div id="curOpts" style="display:flex; flex-direction:column; gap:8px; margin:14px 0 4px;"></div>
   <div class="btns"><button class="no" id="curCancel" data-i18n="no" style="flex:1;">Йўқ</button></div></div></div>
@@ -688,6 +707,8 @@
     execConfirm:'⚠️ Сделка УЖЕ ИСПОЛНЕНА ({e}, {t}). Деньги могли быть выданы. Точно отменить?',
     balHak:'Кредиторы', balKarz:'Должники', weMustGive:'мы должны отдать', theyMustGive:'нам должны',
     balAll:'Все', balHakF:'Кредиторы', balKarzF:'Должники', noClients:'Клиентов нет', searchName:'Поиск по имени...',
+    bsSum:'по сумме', bsDate:'по свежести', bsName:'по имени', bsDead:'спящие', balQuiet:'тихо, дн.',
+    qbFull:'Полный отчёт', dataAt:'Данные на', updBtn:'Обновить', srvW:'сервер',
     curBalance:'Текущий остаток', weOweYou:'мы должны', youOwe:'долг клиента', even:'ровно',
     dealsTitle:'Сделки', makeReport:'Подготовить отчёт (WhatsApp)', loadFirst:'Сначала загрузите сделки',
     rptBalance:'Баланс клиентов', rptDaily:'Ежедневные', rptOverview:'Общее состояние',
@@ -784,6 +805,8 @@
     execConfirm:'⚠️ Сделка БАЖАРИЛГАН ({e}, {t}). Пул берилган бўлиши мумкин. Аниқ бекорми?',
     balHak:'Ҳақдорлар', balKarz:'Қарздорлар', weMustGive:'биз беришимиз керак', theyMustGive:'бизга бериши керак',
     balAll:'Ҳаммаси', balHakF:'Ҳақдор', balKarzF:'Қарздор', noClients:'Мижоз йўқ', searchName:'Исм бўйича қидириш...',
+    bsSum:'сумма бўйича', bsDate:'янгилиги', bsName:'исм', bsDead:'ухлаётган', balQuiet:'жим, кун',
+    qbFull:'Тўлиқ ҳисобот', dataAt:'Маълумот', updBtn:'Янгилаш', srvW:'сервер',
     curBalance:'Жорий қолдиқ', weOweYou:'сизга қарзимиз', youOwe:'қарзингиз', even:'тенг',
     dealsTitle:'Сделкалар', makeReport:'Ҳисобот тайёрлаш (WhatsApp)', loadFirst:'Аввал сделкаларни юкланг',
     rptBalance:'Мижозлар баланси', rptDaily:'Кунлик', rptOverview:'Умумий ҳолат',
@@ -879,6 +902,78 @@
   }
   function apiWrite(action,args,token){ return apiCall(action,args,token); }   // повтор теперь внутри
 
+  // ---------- v21: СТРОКА СОСТОЯНИЯ ДАННЫХ ----------
+  // Показываем время, на которое верны цифры. Молчим, пока они свежие.
+  var DATA_TS='', DATA_STALE=false, LAST_MS=0, LAST_SRV=0;
+  function dataBarSet(ts, stale){
+    if(ts) DATA_TS=ts;
+    DATA_STALE=!!stale;
+    dataBarPaint();
+  }
+  function dataBarPaint(){
+    var bar=document.getElementById('dataBar');
+    if(!bar) return;
+    if(!DATA_STALE || !DATA_TS){ bar.style.display='none'; return; }
+    bar.style.display='flex';
+    document.getElementById('dataBarTxt').textContent=t('dataAt')+' '+DATA_TS;
+    // замер — только админу, чтобы понимать, где уходит время.
+    // Разница между кругом и сервером — это сеть и два прыжка Google.
+    var ms=document.getElementById('dataBarMs');
+    if(ms) ms.textContent=(USER_ROLE==='admin'&&LAST_MS)
+      ? (LAST_MS/1000).toFixed(1)+'с · '+t('srvW')+' '+(LAST_SRV/1000).toFixed(1)
+      : '';
+  }
+  // ---------- v21: ЗАХОД ОДНИМ РАСЧЁТОМ ----------
+  // ping будит контейнер: если скриптом не пользовались, Google его гасит, и
+  // первый запрос за день ждёт запуска — оператор ловит «нет связи» и жмёт ⟳.
+  // Дальше три куска снимка, каждый ложится в кэш сам по себе: потеряется
+  // один — пустой будет одна вкладка, а не все.
+  var SNAP_OK=false;
+  function snapLoad(fresh){
+    if(['operator2','admin','report'].indexOf(USER_ROLE)===-1) return;   // оператору 1 — живые данные
+    var t0=Date.now();
+    apiCall('ping',{},'',true).catch(function(){}).then(function(){
+      return snapPart('a',fresh,t0);
+    }).then(function(){ return snapPart('b',fresh,0); })
+      .then(function(){ return snapPart('c',fresh,0); })
+      .catch(function(){ dataBarSet('',true); });
+  }
+  function snapPart(part,fresh,t0){
+    return apiCall('openSnapshot',{part:part,rev:'',fresh:fresh?1:0},AUTH_TOKEN,true).then(function(r){
+      if(t0){ LAST_MS=Date.now()-t0; LAST_SRV=r&&r.srvMs||0; }
+      if(!r||!r.ok) return;
+      SNAP_OK=true;
+      snapApply(r);
+      dataBarSet(r.ts,false);
+    }).catch(function(){});
+  }
+  // разложить кусок снимка по тем же кэшам, что и обычные экраны:
+  // дальше приложение не отличает снимок от обычной загрузки
+  function snapApply(r){
+    try{
+      if(r.clients&&r.clients.length){ DB=r.clients; cPut('db',DB); }
+      if(r.currencyMap&&Object.keys(r.currencyMap).length){ CUR=r.currencyMap; cPut('cur',CUR); }
+      if(r.moscow&&r.moscow.ok){
+        cPut('moscow',r.moscow);
+        var _sm=document.getElementById('scr-moscow');
+        if(_sm && !_sm.classList.contains('hidden')) mApply(r.moscow);   // экран открыт — освежим
+      }
+      if(r.uzb&&r.uzb.ok){ cPut('uzb',r.uzb); }
+      if(r.region&&r.region.ok){
+        if(r.region.region) cPut('reg_'+r.region.region,r.region);
+        if(r.region.regions) cPut('reglist',r.region.regions);
+      }
+      if(r.requests&&r.requests.ok){ cPut('req',{req:r.requests,sum:null}); }
+      if(r.clientsBalance&&r.clientsBalance.ok){
+        BAL_DATA=r.clientsBalance.items||[]; BAL_TS=Date.now();
+        _balC={rev:r.clientsBalance.rev,items:BAL_DATA,
+               totalPlus:r.clientsBalance.totalPlus,totalMinus:r.clientsBalance.totalMinus};
+        cPut('bal',_balC);
+      }
+      if(r.overview&&r.overview.ok){ OV_DATA=r.overview; OV_TS=Date.now(); cPut('ovw',r.overview); }
+    }catch(e){}
+  }
+
   // v20: ФОНОВАЯ ДОГРУЗКА УБРАНА.
   // Она брала следующий экран, если оператор полторы секунды ничего не делал.
   // Но полторы секунды — это обычная пауза посмотреть на экран: оператор замер,
@@ -909,7 +1004,7 @@
   }
   // локальный кэш экранов: показать мгновенно, свежее подтянуть фоном
   function cGet(k){try{return JSON.parse(localStorage.getItem('c_'+k)||'null');}catch(e){return null;}}
-  function cPut(k,v){try{localStorage.setItem('c_'+k,JSON.stringify(v));}catch(e){}}
+  function cPut(k,v){ if(!cPutSafe_(k,v)){ /* места нет и освободить нечем — живём без кэша */ } }
   // v14: РЕВИЗИЯ вместо таймеров свежести.
   // Экран всегда рисуется из локального кэша мгновенно, а серверу уходит ревизия,
   // с которой снят ИМЕННО ЭТОТ кэш (она лежит внутри самого кэша, в поле rev).
@@ -935,20 +1030,69 @@
   // Не трогаем: справочники (c_db, c_cur) — от денег не зависят;
   // Ойлик закрытого месяца (source:'archive') — он взят из листа Архив_ГГГГ_ММ
   // и не изменится уже никогда, а закрытие следующего месяца чистит всё само.
+  // v21: ЗАКРЫТЫЙ ПЕРИОД НЕ СТИРАЕТСЯ — НИКАКОЙ.
+  //
+  // Раньше защита стояла только на Ойлике, а Тарих и отчёты клиентов сносились
+  // при КАЖДОЙ записи, включая давно закрытые месяцы, которые измениться не
+  // могут. При тридцати-пятидесяти операциях в день они не доживали до второго
+  // открытия — отсюда ощущение, что история "не хранится" вовсе.
+  //
+  // Ключей три вида, и правило теперь одно на все:
+  //   c_mo_2026-07_Москва      Ойлик
+  //   c_th_Москва_m2026-07     Тарих
+  //   c_cl_Имя|month|2026-07-01|   отчёт клиента
+  //   c_day_Москва_2026-07-15  операции дня
+  // Закрытый месяц узнаём по полю source==='archive' — его ставит сервер.
+  // объявлена через function, а не var — cPut зовёт её выше по файлу
+  function CUR_MONTH_(){ var d=new Date(), m=d.getMonth()+1; return d.getFullYear()+'-'+(m<10?'0':'')+m; }
+  function keepClosed_(k){
+    try{
+      var v=cGet(k.slice(2));
+      if(v && v.source==='archive') return true;          // сервер сказал: архив
+      // подстраховка, если source не пришёл: месяц в самом ключе и он не текущий
+      var m=k.match(/(\d{4})-(\d{2})/);
+      if(m && m[0]<CUR_MONTH_()) return true;
+    }catch(e){}
+    return false;
+  }
   function scrDrop_(){
     try{
+      var cur=CUR_MONTH_();
       for(var i=localStorage.length-1;i>=0;i--){
         var k=localStorage.key(i);
         if(!k || k.indexOf('c_')!==0) continue;
         if(k==='c_db' || k==='c_cur' || k==='c_reglist') continue;   // справочники от денег не зависят
-        if(k.indexOf('c_mo_')===0){
-          var v=cGet(k.slice(2));
-          if(v && v.source==='archive') continue;   // закрытый месяц — оставляем
+        if(k.indexOf('c_mo_')===0 || k.indexOf('c_th_')===0 ||
+           k.indexOf('c_cl_')===0 || k.indexOf('c_day_')===0){
+          if(keepClosed_(k)) continue;                    // закрытый период — оставляем
         }
         localStorage.removeItem(k);
       }
     }catch(e){}
     BAL_TS=0; OV_TS=0; quietClear_();
+  }
+  // v21: место кончилось — выкидываем самый старый архив и пробуем снова.
+  // localStorage даёт около 5 МБ: месяц архива весит 50-120 КБ, значит года
+  // на три-четыре хватит. Но однажды упрётся, и упрётся молча — cPut глушит
+  // ошибку. Пусть лучше уступит место сам.
+  function cPutSafe_(k,v){
+    try{ localStorage.setItem('c_'+k,JSON.stringify(v)); return true; }
+    catch(e){
+      var oldest=null;
+      try{
+        for(var i=0;i<localStorage.length;i++){
+          var kk=localStorage.key(i);
+          if(!kk||kk.indexOf('c_')!==0) continue;
+          var m=kk.match(/(\d{4})-(\d{2})/);
+          if(!m) continue;
+          if(m[0]>=CUR_MONTH_()) continue;                // текущий месяц не трогаем
+          if(!oldest || m[0]<oldest.m) oldest={k:kk,m:m[0]};
+        }
+      }catch(e2){}
+      if(!oldest) return false;
+      try{ localStorage.removeItem(oldest.k); localStorage.setItem('c_'+k,JSON.stringify(v)); return true; }
+      catch(e3){ return false; }
+    }
   }
   // v13: список клиентов живёт на телефоне — автокомплит работает сразу, не ждёт сеть
   var DB=cGet('db')||[];
@@ -1109,7 +1253,9 @@
     }
     _reloadWait=true;  // тост — когда запросы реально завершатся
     _forceFresh=true;  // ⟳ всегда мимо серверного кэша
+    scrDrop_();        // v21: кэш экранов долой, закрытые месяцы останутся
     refreshDB(true);   // список клиентов тоже освежаем
+    snapLoad(true);    // v21: снимок пересчитать целиком
     showScreen(name);
     _forceFresh=false;
   }
@@ -1234,7 +1380,7 @@
     var btn=document.getElementById('mSubmit'); btn.disabled=true; btn.textContent=t('writing');
     apiWrite('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
       btn.disabled=false; btn.textContent=t('save');
-      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(); }
+      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res); }
       else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
     }).catch(function(){btn.disabled=false; btn.textContent=t('save'); toast(t('connBroke'),true); mOpen();});
   }
@@ -1282,19 +1428,28 @@
       cPut('moscow',res); mApply(res);               // свежее — поверх (фильтр по текущей кнопке внутри mApply)
     }).catch(function(){ if(g===mGen && !c) toast(t('connLost'),true); });
   }
-  // v20: ПРЕДПОКАЗ СТРОКИ УБРАН.
-  // Строка рисовалась сразу по нажатию, до ответа сервера. Но у второй заявки
-  // подряд прибыль считается на сервере по FIFO, а предпоказ рисовал полную
-  // сумму — оператор видел неверное число и не мог отличить его от настоящего.
-  // Цифра важнее ощущения скорости.
+  // Предпоказ v17 убран в v20 и не возвращается: там телефон рисовал строку
+  // САМ и считал прибыль своей арифметикой — на второй операции подряд
+  // показывал полную сумму вместо прибыли по FIFO.
   //
-  // После сохранения перечитываем экран честно, с сервера.
-  function mAfterSave(){
+  // v21: строку и балансы присылает СЕРВЕР, вместе с ответом на запись.
+  // Телефон их только вставляет. Второго похода за лентой больше нет —
+  // в журнале выполнений на одну запись один doPost, а не два.
+  //
+  // res.row отсутствует (старый бэкенд не задеплоен) — работаем как в v20:
+  // сбрасываем кэш и перечитываем экран.
+  function mAfterSave(res){
     mFeedPeriodVal='today';
     document.getElementById('mFeedToday').classList.add('sel');
     document.getElementById('mFeedYesterday').classList.remove('sel');
     BAL_TS=0; OV_TS=0;                                // отчёты обязаны освежиться
-    scrDrop_(); quietClear_(); mOpen();
+    scrDrop_(); quietClear_();
+    if(!res || !res.row){ mOpen(); return; }          // бэкенд старый — как раньше
+    var c=cGet('moscow') || {ok:true,feed:[],balance:{}};
+    c.feed=[res.row].concat(c.feed||[]);
+    if(res.balance){ c.balance={rub:res.balance.rub, usd:res.balance.usd}; }
+    c.rev=null;                                        // ревизия чужая — заставим проверить
+    cPut('moscow',c); mApply(c);
   }
   var mFeedPeriodVal='today';
   function mFeedPeriod(p){
@@ -1474,7 +1629,7 @@
       var btn=id('Submit'); btn.disabled=true; btn.textContent=t('creating');
       apiWrite('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('createDeal');
-        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(); }
+        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res); }
         else { toast(res.error||t('err'),true); reload(); }
       }).catch(function(){btn.disabled=false; btn.textContent=t('createDeal'); toast(t('connBroke'),true); reload();});
     }
@@ -1502,11 +1657,15 @@
         return (p==='yesterday') ? hasDate : !hasDate;
       });
     }
-    // после сохранения/исполнения: период на «Бугун» (если переключатель есть)
-    // и честное перечитывание экрана с сервера.
-    // v20: экран в ответе на запись больше не приходит — запись отвечает {ok:true}
-    // и заканчивается, не собирая ленту и балансы.
-    function afterSave(){
+    // после сохранения: период на «Бугун» (если переключатель есть).
+    //
+    // v21: строку и баланс присылает СЕРВЕР вместе с ответом на запись —
+    // считать телефону нечего, второго похода за экраном больше нет.
+    // Это не предпоказ v17: там прибыль считал сам телефон и на второй заявке
+    // подряд показывал полную сумму вместо прибыли по FIFO.
+    //
+    // res.row нет (бэкенд ещё не задеплоен) — ведём себя как в v20.
+    function afterSave(res){
       var t=document.getElementById(pfx+'FeedToday');
       if(t){
         st.feedPeriod='today'; t.classList.add('sel');
@@ -1514,7 +1673,16 @@
         var w=document.getElementById(pfx+'FeedWeek'); if(w)w.classList.remove('sel');
       }
       BAL_TS=0; OV_TS=0;
-      scrDrop_(); quietClear_(); reload();
+      scrDrop_(); quietClear_();
+      if(!res || !res.row){ reload(); return; }
+      var key=(pfx==='u')?'uzb':('reg_'+(res.region||getRegionName()));
+      var c=cGet(key);
+      if(!c){ reload(); return; }                    // кэша нет — честно перечитаем
+      c.feed=[res.row].concat(c.feed||[]);
+      if(res.balance) c.balance=res.balance;
+      c.rev=null;
+      cPut(key,c);
+      if(pfx==='u') uApply(c); else gApplyCached(c);
     }
     function curLabels(){
       var c=cur(getRegionName());
@@ -2458,6 +2626,26 @@
     balClearToggle();
     balRender();
   }
+  // v21: СОРТИРОВКА И «СПЯЩИЕ».
+  // Клиентов сто девятнадцать, и глазами в них не разобраться. Сумма отвечает
+  // «кто важен», свежесть — «с кем работаем», спящие — «у кого зависло».
+  var balSort='sum';
+  function balSetSort(s){
+    balSort=s;
+    ['sum','date','name','dead'].forEach(function(k){
+      var e=document.getElementById('bs_'+k); if(e) e.classList.toggle('sel',k===s);
+    });
+    balRender();
+  }
+  // «посл.» приходит строкой дд.мм — считаем возраст в днях
+  function balAge_(it){
+    var s=String(it.last||''); var m=s.match(/(\d{2})\.(\d{2})/);
+    if(!m) return 9999;
+    var now=new Date(), y=now.getFullYear();
+    var d=new Date(y, parseInt(m[2],10)-1, parseInt(m[1],10));
+    if(d>now) d.setFullYear(y-1);                    // декабрь при январе
+    return Math.round((now-d)/86400000);
+  }
   function balRender(){
     var q=document.getElementById('balSearch').value.trim().toLowerCase();
     var box=document.getElementById('balList');
@@ -2465,9 +2653,14 @@
       if(q && it.name.toLowerCase().indexOf(q)===-1) return false;
       if(balCurFilter==='hak' && it.balance<=0) return false;
       if(balCurFilter==='karz' && it.balance>=0) return false;
+      if(balSort==='dead' && (it.pseudo || balAge_(it)<14)) return false;
       return true;
     });
-    if(!list.length){ box.innerHTML='<div class="empty">'+t('noClients')+'</div>'; return; }
+    if(balSort==='name')      list=list.slice().sort(function(a,b){ return String(a.name).localeCompare(String(b.name),'ru'); });
+    else if(balSort==='date') list=list.slice().sort(function(a,b){ return balAge_(a)-balAge_(b); });
+    else if(balSort==='dead') list=list.slice().sort(function(a,b){ return balAge_(b)-balAge_(a); });
+    else                      list=list.slice().sort(function(a,b){ return Math.abs(b.balance)-Math.abs(a.balance); });
+    if(!list.length){ box.innerHTML='<div class="empty">'+(balSort==='dead'?t('noClients'):t('noClients'))+'</div>'; return; }
     var h='';
     list.forEach(function(it){
       var cls=it.balance>0?'plus':(it.balance<0?'minus':'');
@@ -2475,8 +2668,11 @@
       var dot=it.today?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;"></span>':'';
       var clickable=!it.pseudo;
       var stl=(clickable?'cursor:pointer;':'opacity:.55;')+(it.today?'border:1.5px solid var(--accent);border-radius:10px;padding-left:10px;padding-right:10px;':'');
-      var clickAttr=' style="'+stl+'"'+(clickable?(' onclick="openClient(\''+esc(it.name).replace(/'/g,"\\'")+'\',\'reports\')"'):'');
-      h+='<div class="op-item"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div></div>';
+      // v21: из списка балансов тоже сперва карточка, отчёт — кнопкой в ней
+      var clickAttr=' style="'+stl+'"'+(clickable?(' onclick="quickBal(\''+esc(it.name).replace(/'/g,"\\'")+'\',\'reports\')"'):'');
+      var age=balAge_(it);
+      var quiet=(!it.pseudo && age>=14 && age<9999)?(' · '+t('balQuiet')+' '+age):'';
+      h+='<div class="op-item"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+quiet+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div></div>';
     });
     box.innerHTML=h;
   }
@@ -2485,14 +2681,26 @@
   var clCurName='', clCurPhone='', clPeriodVal='all', clReportText='', clReportPhone='';
 
   var CL_BACK='reports';   // экран, откуда зашли на клиента
+  var qbName_='', qbFrom_='reports';
+  // v21: ТАП ПО ИМЕНИ В ЛЕНТЕ — КАРТОЧКА, А НЕ ПОЛНЫЙ ОТЧЁТ.
+  //
+  // Раньше у всех, кроме оператора 1, тап улетал в полный отчёт: лента
+  // пропадала, приходилось возвращаться. Чаще всего нужен только остаток.
+  //
+  // Теперь карточку получают ВСЕ — та же, что была у оператора 1. Полный
+  // отчёт открывается кнопкой внутри карточки, и кнопка есть только у ролей
+  // с доступом. Доступ решается наличием кнопки, а не запретом внутри экрана.
   function feedClick(name, from){
     name=String(name||'').trim();
     if(!name || name==='Обмен' || name==='Остаток') return '';
     var esc1=name.replace(/'/g,"\\'");
-    if(USER_ROLE==='operator1')   // оператору 1 — только текущий остаток карточкой
-      return ' style="cursor:pointer;" onclick="quickBal(\''+esc1+'\')"';
-    if(['operator2','admin','report'].indexOf(USER_ROLE)===-1) return '';
-    return ' style="cursor:pointer;" onclick="openClient(\''+esc1+'\',\''+from+'\')"';
+    if(['operator1','operator2','admin','report'].indexOf(USER_ROLE)===-1) return '';
+    return ' style="cursor:pointer;" onclick="quickBal(\''+esc1+'\',\''+from+'\')"';
+  }
+  // кнопка «Полный отчёт» из карточки
+  function qbOpenFull(){
+    document.getElementById('qbWrap').classList.remove('show');
+    if(qbName_) openClient(qbName_, qbFrom_);
   }
   /* карточка «остаток клиента» */
   // v17: рисуем СРАЗУ из уже загруженного баланса клиентов — там есть и сумма,
@@ -2513,9 +2721,13 @@
     }
     return null;
   }
-  function quickBal(name){
+  function quickBal(name, from){
+    qbName_=name; qbFrom_=from||'reports';
     document.getElementById('qbName').textContent=name;
     document.getElementById('qbWrap').classList.add('show');
+    // кнопка полного отчёта — только у ролей с доступом. Оператор 1 её не видит
+    var _f=document.getElementById('qbFull');
+    if(_f) _f.style.display=(['operator2','admin','report'].indexOf(USER_ROLE)!==-1)?'':'none';
     var hit=qbFromCache_(name);
     if(hit) qbPaint_(hit.balance||0, hit.count||0, hit.last||'');
     else { document.getElementById('qbSum').textContent='…';
@@ -2926,7 +3138,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 20;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 21;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -3099,6 +3311,10 @@
     var period=(pv.charAt(0)==='m')?{month:pv.slice(1)}:{days:parseInt(pv.slice(1),10)||10};
     var ck='th_'+place+'_'+pv, c=cGet(ck);            // v14: кэш по ключу место+период
     if(c) thRender(c); else box.innerHTML='<div class="loading">…</div>';
+    // v21: закрытый месяц не меняется НИКОГДА — в сеть не идём вовсе.
+    // Так уже сделано в moLoad, а тут не было: Тарих спрашивал сервер даже про
+    // июнь. Признак закрытого — период вида m2026-07 раньше текущего месяца.
+    if(c && !_forceFresh && pv.charAt(0)==='m' && pv.slice(1)<CUR_MONTH_()) return;
     apiCall('getBalanceHistory',{place:place,period:period,rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(r){
       if(!r||!r.ok){ if(!c) box.innerHTML='<div class="empty">'+((r&&r.error)||t('err'))+'</div>'; return; }
       if(!revNew_(r)) return;
@@ -3118,7 +3334,8 @@
       var dayTxt=it.d.slice(8,10)+'.'+it.d.slice(5,7)+' · '+wd[dt.getDay()];
       var dTxt=it.dUsd===0?'<span style="color:var(--muted);">—</span>'
         :('<span style="color:'+(it.dUsd>0?'var(--plus)':'var(--minus)')+';">'+(it.dUsd>0?'+':'−')+fmt(Math.abs(it.dUsd))+'</span>');
-      h+='<div style="display:flex;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;">'+
+      // v21: строка дня кликабельна — раскрывает операции этого дня
+      h+='<div onclick="thDay(\''+esc(r.place)+'\',\''+it.d+'\')" style="cursor:pointer;display:flex;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;">'+
         '<span style="flex:1;">'+dayTxt+'</span>'+
         '<span style="width:86px;text-align:right;font-weight:600;">'+cur(r.place)+fmt(it.usd)+'</span>'+
         '<span style="width:48px;text-align:right;color:var(--muted);">'+String(it.avg).replace('.',',')+'</span>'+
@@ -3127,9 +3344,45 @@
         var cTxt=it.dCash===0?'':' · '+t('thDelta').toLowerCase()+' '+(it.dCash>0?'+':'−')+fmt(Math.abs(it.dCash))+' ₽';
         h+='<div style="font-size:11px;color:var(--muted);padding:0 0 8px;border-bottom:1px solid var(--line);margin-top:-6px;">'+t('thCash')+': '+fmt(it.cash)+' ₽'+cTxt+'</div>';
       }
+      h+='<div id="thd_'+it.d+'" style="display:none;padding:2px 0 10px;border-bottom:1px solid var(--line);"></div>';
     });
     h+='</div>';
     document.getElementById('thBox').innerHTML=h;
+  }
+  // v21: операции одного дня. Весь месяц в снимок не кладём — к тридцатому
+  // числу это больше сотни килобайт каждое утро, а нужен обычно один день.
+  // Скачанный день ложится в кэш: второе открытие уже без сети.
+  function thDay(place,day){
+    var box=document.getElementById('thd_'+day);
+    if(!box) return;
+    if(box.style.display==='block'){ box.style.display='none'; return; }
+    box.style.display='block';
+    var ck='day_'+place+'_'+day, c=cGet(ck);
+    if(c) thDayRender(box,c);
+    else box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">…</div>';
+    if(c && !_forceFresh && day.slice(0,7)<CUR_MONTH_()) return;   // закрытый месяц — не спрашиваем
+    apiCall('getDayOps',{place:place,day:day,rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(r){
+      if(!r||!r.ok){ if(!c) box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">'+((r&&r.error)||t('err'))+'</div>'; return; }
+      if(!revNew_(r)) return;
+      cPut(ck,r); thDayRender(box,r);
+    }).catch(function(){ if(!c) box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">'+t('connLost')+'</div>'; });
+  }
+  function thDayRender(box,r){
+    if(!r.items||!r.items.length){ box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">'+t('noOps2')+'</div>'; return; }
+    box.innerHTML=r.items.map(function(o){
+      var sum=o.usd?((o.usd>0?'+':'−')+'$'+fmt(Math.abs(o.usd))):((o.rub>0?'+':'−')+fmt(Math.abs(o.rub))+' ₽');
+      var col=(o.usd||o.rub)<0?'var(--minus)':'var(--plus)';
+      var meta=[o.time,o.action];
+      if(o.rate) meta.push(String(o.rate).replace('.',','));
+      if(o.rubItog) meta.push(fmt(Math.abs(o.rubItog))+' ₽');
+      if(o.profit) meta.push(t('profitWord')+' '+fmt(o.profit));
+      if(o.executor) meta.push(esc(o.executor));
+      return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;">'+
+          '<span>'+esc(o.name)+'</span>'+
+          '<span style="font-weight:600;color:'+col+';white-space:nowrap;">'+sum+'</span></div>'+
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+meta.join(' · ')+'</div></div>';
+    }).join('');
   }
 
   /* ===== старт ===== */
@@ -3171,13 +3424,23 @@
   // Осталось: кэш экранов (открытый один раз экран открывается мгновенно) и
   // окно тишины.
   //
-  // v20: прогрев контейнера тоже убран — это был ещё один запрос каждые
-  // две с половиной минуты, ради экономии, которую никто не заметил.
+  // v20: прогрев контейнера убирался как «экономия, которую никто не заметил».
+  // Заметил: первый заход за день бил в холодный контейнер, запрос уходил в
+  // никуда, и приходилось жать ⟳. В v21 вместо постоянного прогрева — один
+  // ping перед снимком. Один запрос при заходе вместо запроса каждые 2,5 минуты.
 
   if(!DB.length) refreshDB(true);   // клиентов нет вообще (первая установка) — тянем сразу
   if(!Object.keys(CUR).length) curLoad();
   applyI18n();
   buildTabs();
+
+  // v21: заход одним расчётом. Пока он идёт, экраны рисуются из вчерашнего
+  // кэша, а строка сверху честно говорит, на какое время эти цифры.
+  (function(){
+    var c=cGet('moscow');
+    if(c) dataBarSet('', true);        // есть чем показать — предупредим, что это старое
+    snapLoad(false);
+  })();
 </script>
 </body>
 </html>

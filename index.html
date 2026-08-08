@@ -336,7 +336,7 @@
       <button class="submit" id="uSubmit" onclick="uSubmit()" data-i18n="createDeal">Сделка яратиш</button>
       <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="UZB.reset()" data-i18n="clearForm">Тозалаш</button>
     </div>
-    <div class="card feed"><h2 data-i18n="histUzb">История (Узбекистан) · 2 кун</h2>
+    <div class="card feed"><h2 data-i18n="histUzb">История (Узбекистан) · 7 дней</h2>
       <div id="uFeed"><div class="loading">…</div></div>
     </div>
     <div class="card" id="uReqCard"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><div class="sec-title" style="margin:0;" data-i18n="regionDeals">Бу ҳудуд сделкалари</div><div id="uExecAllBtn" onclick="execAllRequests('Узбекистан')" style="display:none; padding:7px 12px; background:rgba(61,220,132,.15); border:1px solid var(--accent); border-radius:9px; color:var(--accent); font-size:12px; font-weight:700; cursor:pointer;"><span data-i18n="execAll">Барчасини бажарилди</span></div></div><div id="uReqList"><div class="loading">…</div></div></div>
@@ -488,6 +488,10 @@
       <div class="card">
         <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;" data-i18n="rcHint">Аварийная кнопка…</div>
         <button class="submit" id="rcSubmit" onclick="rcSubmit()" data-i18n="rcBtn">Пересчитать всё</button>
+        <!-- v22: закрытые месяцы лежат в телефоне вечно и в сеть за ними не ходим.
+             Нужно это сбросить только если прошлый месяц реально пересчитали. -->
+        <div style="font-size:12px;color:var(--muted);margin:12px 0 6px;" data-i18n="archHint">Закрытые месяцы хранятся в телефоне и не перезапрашиваются. Сбросьте, если пересчитали прошлый месяц.</div>
+        <button class="btn-cancel" style="width:100%;padding:13px;" onclick="dropArchives()" data-i18n="archDrop">Сбросить архивы</button>
       </div>
       <div class="card">
         <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;" data-i18n="rcmHint">Месячный пересчёт…</div>
@@ -633,6 +637,13 @@
   <div id="qbSub" style="font-size:12px;color:var(--muted);margin-top:2px;"></div>
   <div id="qbMeta" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
   <div class="btns"><button class="no" onclick="document.getElementById('qbWrap').classList.remove('show')" data-i18n="close" style="flex:1;">Ёпиш</button><button class="yes" id="qbFull" style="flex:1;display:none;" onclick="qbOpenFull()" data-i18n="qbFull">Тўлиқ ҳисобот</button></div></div></div>
+<!-- v22: вердикт после обрыва связи. Оператор не должен гадать, записалось ли. -->
+<div class="confirm-wrap" id="vdWrap"><div class="confirm-card">
+  <div id="vdBody"></div>
+  <div class="btns" style="margin-top:16px;">
+    <button class="no" style="flex:1;" onclick="document.getElementById('vdWrap').classList.remove('show')" data-i18n="close">Ёпиш</button>
+    <button class="yes" id="vdRetry" style="flex:1;display:none;" onclick="verdictRetry()" data-i18n="vdRetryBtn">Такрорлаш</button>
+  </div></div></div>
 <div class="confirm-wrap" id="curWrap"><div class="confirm-card" style="text-align:left;"><div class="sum-title" data-i18n="curQ" style="text-align:center;">Валюта региона</div>
   <div id="curOpts" style="display:flex; flex-direction:column; gap:8px; margin:14px 0 4px;"></div>
   <div class="btns"><button class="no" id="curCancel" data-i18n="no" style="flex:1;">Йўқ</button></div></div></div>
@@ -674,7 +685,7 @@
     usdQ:'Есть доллары $?', musdHint:'Договорной курс: $ спишется/зачислится по нему, зачёт клиенту по курсу',
     gaveUsd:'Отдал $', gotRub:'Получил ₽', gaveRub:'Отдал ₽', gotUsd:'Получил $',
     rateAuto:'Введите суммы — курс посчитается сам',
-    histMoscow:'История (Москва)', histUzb:'История (Узбекистан) · 2 дня', hist20:'История · последние 20',
+    histMoscow:'История (Москва)', histUzb:'История (Узбекистан) · 7 дней', hist20:'История · последние 20',
     histTransfers:'История переводов', day:'День',
     today:'Сегодня', yesterday:'Вчера', all:'Все', period:'Период',
     noOps:'Операций нет', noDeals:'Сделок нет', rate:'курс',
@@ -709,6 +720,12 @@
     balAll:'Все', balHakF:'Кредиторы', balKarzF:'Должники', noClients:'Клиентов нет', searchName:'Поиск по имени...',
     bsSum:'по сумме', bsDate:'по свежести', bsName:'по имени', bsDead:'спящие', balQuiet:'тихо, дн.',
     qbFull:'Полный отчёт', dataAt:'Данные на', updBtn:'Обновить', srvW:'сервер',
+    archDrop:'Сбросить архивы', archDropped:'Сброшено архивов:',
+    archHint:'Закрытые месяцы хранятся в телефоне и не перезапрашиваются. Сбросьте, если пересчитали прошлый месяц.',
+    vdWritten:'✓ Операция записана', vdWrittenSub:'Повторять не нужно — она уже в таблице.',
+    vdMissing:'✕ Операция НЕ записана', vdMissingSub:'В таблице её нет. Нажмите «Повторить» — уйдёт та же операция, дубля не будет.',
+    vdUnknown:'Не удалось проверить', vdUnknownSub:'Связи нет. Откройте ленту и посмотрите, прежде чем повторять вручную.',
+    vdRetryBtn:'Повторить',
     curBalance:'Текущий остаток', weOweYou:'мы должны', youOwe:'долг клиента', even:'ровно',
     dealsTitle:'Сделки', makeReport:'Подготовить отчёт (WhatsApp)', loadFirst:'Сначала загрузите сделки',
     rptBalance:'Баланс клиентов', rptDaily:'Ежедневные', rptOverview:'Общее состояние',
@@ -772,7 +789,7 @@
     usdQ:'Доллар $ бор?', musdHint:'Келишилган курс: $ шу курс бўйича ҳисобланади',
     gaveUsd:'Бердим $', gotRub:'Олдим ₽', gaveRub:'Бердим ₽', gotUsd:'Олдим $',
     rateAuto:'Суммани киритинг — курс ўзи ҳисобланади',
-    histMoscow:'История (Москва)', histUzb:'История (Узбекистан) · 2 кун', hist20:'История · сўнгги 20',
+    histMoscow:'История (Москва)', histUzb:'История (Узбекистан) · 7 дней', hist20:'История · сўнгги 20',
     histTransfers:'Ўтказмалар тарихи', day:'Кун',
     today:'Бугун', yesterday:'Кеча', all:'Ҳаммаси', period:'Давр',
     noOps:'Амал йўқ', noDeals:'Сделка йўқ', rate:'курс',
@@ -807,6 +824,12 @@
     balAll:'Ҳаммаси', balHakF:'Ҳақдор', balKarzF:'Қарздор', noClients:'Мижоз йўқ', searchName:'Исм бўйича қидириш...',
     bsSum:'сумма бўйича', bsDate:'янгилиги', bsName:'исм', bsDead:'ухлаётган', balQuiet:'жим, кун',
     qbFull:'Тўлиқ ҳисобот', dataAt:'Маълумот', updBtn:'Янгилаш', srvW:'сервер',
+    archDrop:'Архивларни тозалаш', archDropped:'Тозаланди:',
+    archHint:'Ёпилган ойлар телефонда сақланади ва қайта сўралмайди. Ўтган ой қайта ҳисобланган бўлса тозаланг.',
+    vdWritten:'✓ Амал ёзилди', vdWrittenSub:'Такрорлаш шарт эмас — у жадвалда бор.',
+    vdMissing:'✕ Амал ЁЗИЛМАДИ', vdMissingSub:'Жадвалда йўқ. «Такрорлаш» босинг — ўша амал кетади, дубль бўлмайди.',
+    vdUnknown:'Текшириб бўлмади', vdUnknownSub:'Алоқа йўқ. Қўлда такрорлашдан олдин тарихни очиб кўринг.',
+    vdRetryBtn:'Такрорлаш',
     curBalance:'Жорий қолдиқ', weOweYou:'сизга қарзимиз', youOwe:'қарзингиз', even:'тенг',
     dealsTitle:'Сделкалар', makeReport:'Ҳисобот тайёрлаш (WhatsApp)', loadFirst:'Аввал сделкаларни юкланг',
     rptBalance:'Мижозлар баланси', rptDaily:'Кунлик', rptOverview:'Умумий ҳолат',
@@ -902,6 +925,58 @@
   }
   function apiWrite(action,args,token){ return apiCall(action,args,token); }   // повтор теперь внутри
 
+  // ---------- v22: ЗАПИСАЛОСЬ ИЛИ НЕТ ----------
+  //
+  // Обрыв связи ПОСЛЕ записи выглядит так же, как обрыв ДО неё: и там и там
+  // «Алоқа узилди». Оператор не знает, повторять ли.
+  //
+  // Повторит вручную — форма даст НОВЫЙ opId, и защита от дубля его не поймает:
+  // в листе окажутся две операции. Не повторит — а записи не было.
+  // Оба исхода стоят денег, поэтому гадать оператор не должен.
+  //
+  // checkOp смотрит хвост листа и отвечает прямо. Дальше три честных исхода:
+  // записано · не записано · не смогли проверить.
+  var _lastWrite=null;      // {opId, action, args, retry}
+  function writeVerdict(ctx){
+    _lastWrite=ctx;
+    apiCall('checkOp',{opId:ctx.opId},AUTH_TOKEN,true).then(function(r){
+      if(!r||!r.ok){ verdictShow('unknown',ctx); return; }
+      verdictShow(r.found?'written':'missing', ctx, r.row);
+    }).catch(function(){ verdictShow('unknown',ctx); });
+  }
+  function verdictShow(kind,ctx,row){
+    var w=document.getElementById('vdWrap'), b=document.getElementById('vdBody'),
+        rt=document.getElementById('vdRetry');
+    if(!w) return;
+    var det=row?(esc(row.name)+' · '+(row.usd?('$'+fmt(Math.abs(row.usd))+' · '):'')+fmt(Math.abs(row.rubItog||row.rub||0))+' ₽'):(ctx.det||'');
+    if(kind==='written'){
+      b.innerHTML='<div style="color:var(--plus);font-size:17px;font-weight:700;">'+t('vdWritten')+'</div>'+
+                  (det?'<div style="margin-top:8px;font-size:13px;">'+det+'</div>':'')+
+                  '<div style="margin-top:8px;font-size:12px;color:var(--muted);">'+t('vdWrittenSub')+'</div>';
+      rt.style.display='none';
+    } else if(kind==='missing'){
+      b.innerHTML='<div style="color:var(--minus);font-size:17px;font-weight:700;">'+t('vdMissing')+'</div>'+
+                  (det?'<div style="margin-top:8px;font-size:13px;">'+det+'</div>':'')+
+                  '<div style="margin-top:8px;font-size:12px;color:var(--muted);">'+t('vdMissingSub')+'</div>';
+      rt.style.display='';
+    } else {
+      b.innerHTML='<div style="color:var(--gold);font-size:17px;font-weight:700;">'+t('vdUnknown')+'</div>'+
+                  '<div style="margin-top:8px;font-size:12px;color:var(--muted);">'+t('vdUnknownSub')+'</div>';
+      rt.style.display='none';
+    }
+    w.classList.add('show');
+  }
+  // повтор шлёт ТОТ ЖЕ opId — если первая попытка всё-таки дошла,
+  // сервер увидит его в листе и ответит «дубль», второй строки не будет
+  function verdictRetry(){
+    var ctx=_lastWrite; if(!ctx) return;
+    document.getElementById('vdWrap').classList.remove('show');
+    apiWrite(ctx.action,ctx.args,AUTH_TOKEN).then(function(res){
+      if(res&&res.ok){ showOk(t('saved'),ctx.det||''); if(ctx.after) ctx.after(res); }
+      else toast((res&&res.error)||t('err'),true);
+    }).catch(function(){ writeVerdict(ctx); });
+  }
+
   // ---------- v21: СТРОКА СОСТОЯНИЯ ДАННЫХ ----------
   // Показываем время, на которое верны цифры. Молчим, пока они свежие.
   var DATA_TS='', DATA_STALE=false, LAST_MS=0, LAST_SRV=0;
@@ -910,12 +985,18 @@
     DATA_STALE=!!stale;
     dataBarPaint();
   }
+  // v22: строка видна ВСЕГДА, а не только при сбое.
+  // В v21 я сузил её до «показывать при проблеме», и вместе с ней прятался
+  // замер, который просили держать на виду. Строка не мигает и не бежит —
+  // одна строка с временем, на которое верны цифры.
   function dataBarPaint(){
     var bar=document.getElementById('dataBar');
     if(!bar) return;
-    if(!DATA_STALE || !DATA_TS){ bar.style.display='none'; return; }
+    if(!DATA_TS){ bar.style.display='none'; return; }        // ещё нечего сказать
     bar.style.display='flex';
-    document.getElementById('dataBarTxt').textContent=t('dataAt')+' '+DATA_TS;
+    document.getElementById('dataBarTxt').textContent=
+      t('dataAt')+' '+DATA_TS+(DATA_STALE?' ·':'');
+    bar.style.borderColor=DATA_STALE?'var(--gold)':'var(--line)';
     // замер — только админу, чтобы понимать, где уходит время.
     // Разница между кругом и сервером — это сеть и два прыжка Google.
     var ms=document.getElementById('dataBarMs');
@@ -936,6 +1017,8 @@
       return snapPart('a',fresh,t0);
     }).then(function(){ return snapPart('b',fresh,0); })
       .then(function(){ return snapPart('c',fresh,0); })
+      .then(function(){ return snapPart('d1',fresh,0); })
+      .then(function(){ return snapPart('d2',fresh,0); })
       .catch(function(){ dataBarSet('',true); });
   }
   function snapPart(part,fresh,t0){
@@ -947,10 +1030,49 @@
       dataBarSet(r.ts,false);
     }).catch(function(){});
   }
+  // v22: ОПЕРАЦИИ ТЕКУЩЕГО МЕСЯЦА из снимка.
+  // Порядок полей строки — как в SNAP_OPS_COLS на сервере. Массивы, а не
+  // объекты: имена полей, повторённые тысячу двести раз, — лишние килобайты
+  // на каждом заходе.
+  var SO={d:0,place:1,name:2,action:3,usd:4,rate:5,rub:6,profit:7,run:8,status:9,executor:10,id:11};
+  var SNAP_OPS=null, SNAP_OPS_N=0;
+  function snapOpsPut_(part){
+    if(!part || !part.ops) return;
+    if(!SNAP_OPS) SNAP_OPS=[];
+    SNAP_OPS=SNAP_OPS.concat(part.ops);
+    SNAP_OPS_N=part.total||SNAP_OPS.length;
+    try{ cPut('ops',{rows:SNAP_OPS,total:SNAP_OPS_N,ts:Date.now()}); }catch(e){}
+  }
+  function snapOpsGet_(){
+    if(SNAP_OPS) return SNAP_OPS;
+    var c=cGet('ops'); if(c&&c.rows){ SNAP_OPS=c.rows; SNAP_OPS_N=c.total||c.rows.length; return SNAP_OPS; }
+    return null;
+  }
+  // операции одного клиента — без единого запроса
+  function opsOfClient_(name){
+    var all=snapOpsGet_(); if(!all) return null;
+    var out=[];
+    for(var i=0;i<all.length;i++) if(all[i][SO.name]===name) out.push(all[i]);
+    return out.length?out:[];
+  }
+  // операции одного дня и места — то же самое, другой срез
+  function opsOfDay_(place,day){
+    var all=snapOpsGet_(); if(!all) return null;
+    var out=[];
+    for(var i=0;i<all.length;i++){
+      if(all[i][SO.place]!==place) continue;
+      if(String(all[i][SO.d]).slice(0,10)!==day) continue;
+      out.push(all[i]);
+    }
+    return out;
+  }
   // разложить кусок снимка по тем же кэшам, что и обычные экраны:
   // дальше приложение не отличает снимок от обычной загрузки
   function snapApply(r){
     try{
+      if(r.part==='d1'){ SNAP_OPS=null; snapOpsPut_(r); return; }   // d1 начинает набор заново
+      if(r.part==='d2'){ snapOpsPut_(r); return; }
+      if(r.monthly&&r.monthly.ok&&r.monthlyKey){ cPut('mo_'+r.monthlyKey,r.monthly); }
       if(r.clients&&r.clients.length){ DB=r.clients; cPut('db',DB); }
       if(r.currencyMap&&Object.keys(r.currencyMap).length){ CUR=r.currencyMap; cPut('cur',CUR); }
       if(r.moscow&&r.moscow.ok){
@@ -1055,16 +1177,22 @@
     }catch(e){}
     return false;
   }
-  function scrDrop_(){
+  // v22: who — имя клиента, которого коснулась запись. Отчёты ОСТАЛЬНЫХ
+  // клиентов не трогаем: операция по Акмалу не меняет отчёт Ромина.
+  // Раньше сносились все сто девятнадцать, и ни один не доживал до второго
+  // открытия — при тридцати-пятидесяти записях в день.
+  function scrDrop_(who){
     try{
-      var cur=CUR_MONTH_();
       for(var i=localStorage.length-1;i>=0;i--){
         var k=localStorage.key(i);
         if(!k || k.indexOf('c_')!==0) continue;
         if(k==='c_db' || k==='c_cur' || k==='c_reglist') continue;   // справочники от денег не зависят
-        if(k.indexOf('c_mo_')===0 || k.indexOf('c_th_')===0 ||
-           k.indexOf('c_cl_')===0 || k.indexOf('c_day_')===0){
+        if(k.indexOf('c_cl_')===0){
           if(keepClosed_(k)) continue;                    // закрытый период — оставляем
+          // ключ вида c_cl_Имя|month|...  — сравниваем имя
+          if(who && k.slice(5).split('|')[0]!==who) continue;
+        } else if(k.indexOf('c_mo_')===0 || k.indexOf('c_th_')===0 || k.indexOf('c_day_')===0){
+          if(keepClosed_(k)) continue;
         }
         localStorage.removeItem(k);
       }
@@ -1253,11 +1381,32 @@
     }
     _reloadWait=true;  // тост — когда запросы реально завершатся
     _forceFresh=true;  // ⟳ всегда мимо серверного кэша
-    scrDrop_();        // v21: кэш экранов долой, закрытые месяцы останутся
+    scrDrop_();        // кэш экранов долой, закрытые месяцы останутся
     refreshDB(true);   // список клиентов тоже освежаем
-    snapLoad(true);    // v21: снимок пересчитать целиком
+    snapLoad(true);    // снимок пересчитать целиком
     showScreen(name);
     _forceFresh=false;
+  }
+  // v22: ⟳ БОЛЬШЕ НЕ ПЕРЕКАЧИВАЕТ АРХИВЫ.
+  // Раньше _forceFresh снимал защиту «за закрытым месяцем в сеть не ходим»,
+  // и каждое нажатие тянуло июнь с июлем, которые измениться не могут.
+  // Операторы жмут ⟳ по десять раз в день — это были десятки лишних запросов.
+  //
+  // Для редкого случая, когда прошлый месяц действительно пересчитали
+  // (закрытие в начале следующего), есть отдельная кнопка в админке.
+  function dropArchives(){
+    var n=0;
+    try{
+      for(var i=localStorage.length-1;i>=0;i--){
+        var k=localStorage.key(i);
+        if(!k||k.indexOf('c_')!==0) continue;
+        if(k.indexOf('c_mo_')!==0 && k.indexOf('c_th_')!==0 &&
+           k.indexOf('c_cl_')!==0 && k.indexOf('c_day_')!==0) continue;
+        if(!keepClosed_(k)) continue;                   // трогаем ТОЛЬКО закрытые
+        localStorage.removeItem(k); n++;
+      }
+    }catch(e){}
+    toast(t('archDropped')+' '+n);
   }
   function toast(msg,isErr){var t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(function(){t.className='toast';},2500);}
   function showOk(title,det){var c=document.getElementById('okCard'); c.innerHTML='✓ '+title+(det?'<span class="det">'+det+'</span>':''); var w=document.getElementById('okCenter'); w.className='ok-center show'; clearTimeout(w._t); w._t=setTimeout(function(){w.className='ok-center';},2500);}
@@ -1382,7 +1531,13 @@
       btn.disabled=false; btn.textContent=t('save');
       if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res); }
       else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
-    }).catch(function(){btn.disabled=false; btn.textContent=t('save'); toast(t('connBroke'),true); mOpen();});
+    }).catch(function(){
+      btn.disabled=false; btn.textContent=t('save');
+      // v22: не «нет связи», а проверка и прямой ответ — записалось или нет
+      writeVerdict({opId:p.opId, action:'saveMoscow', args:{payload:p},
+                    det:esc(p.name||''), after:function(r){ mReset(); mAfterSave(r); }});
+      mOpen();
+    });
   }
   function mShowOk(p){
     var label=p.action==='oldim'?'Олдим ＋':p.action==='berdim'?'Бердим －':'Обмен',det='';
@@ -1443,7 +1598,7 @@
     document.getElementById('mFeedToday').classList.add('sel');
     document.getElementById('mFeedYesterday').classList.remove('sel');
     BAL_TS=0; OV_TS=0;                                // отчёты обязаны освежиться
-    scrDrop_(); quietClear_();
+    scrDrop_(res&&res.row?res.row.name:null); quietClear_();
     if(!res || !res.row){ mOpen(); return; }          // бэкенд старый — как раньше
     var c=cGet('moscow') || {ok:true,feed:[],balance:{}};
     c.feed=[res.row].concat(c.feed||[]);
@@ -1631,7 +1786,13 @@
         btn.disabled=false; btn.textContent=t('createDeal');
         if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res); }
         else { toast(res.error||t('err'),true); reload(); }
-      }).catch(function(){btn.disabled=false; btn.textContent=t('createDeal'); toast(t('connBroke'),true); reload();});
+      }).catch(function(){
+        btn.disabled=false; btn.textContent=t('createDeal');
+        // v22: вердикт вместо «нет связи» — см. writeVerdict
+        writeVerdict({opId:p.opId, action:'saveRegionRequest', args:{payload:p},
+                      det:esc(p.name||''), after:function(r){ reset(); afterSave(r); }});
+        reload();
+      });
     }
     // v20: предпоказ строки убран — см. пояснение у mAfterSave.
     function reload(){ if(pfx==='u') uOpen(); else gOpen(); }
@@ -1651,7 +1812,7 @@
     function filterFeed(items){
       items=items||[];
       var p=st.feedPeriod;
-      if(!p||p==='week') return items;   // переключателя нет/неактивен — лента как есть (2 дня)
+      if(!p||p==='week') return items;   // переключателя нет/неактивен — лента как есть (неделя)
       return items.filter(function(it){
         var hasDate=String(it.datetime).indexOf('.')>-1;
         return (p==='yesterday') ? hasDate : !hasDate;
@@ -1673,7 +1834,7 @@
         var w=document.getElementById(pfx+'FeedWeek'); if(w)w.classList.remove('sel');
       }
       BAL_TS=0; OV_TS=0;
-      scrDrop_(); quietClear_();
+      scrDrop_(res&&res.row?res.row.name:null); quietClear_();
       if(!res || !res.row){ reload(); return; }
       var key=(pfx==='u')?'uzb':('reg_'+(res.region||getRegionName()));
       var c=cGet(key);
@@ -2668,8 +2829,10 @@
       var dot=it.today?'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;"></span>':'';
       var clickable=!it.pseudo;
       var stl=(clickable?'cursor:pointer;':'opacity:.55;')+(it.today?'border:1.5px solid var(--accent);border-radius:10px;padding-left:10px;padding-right:10px;':'');
-      // v21: из списка балансов тоже сперва карточка, отчёт — кнопкой в ней
-      var clickAttr=' style="'+stl+'"'+(clickable?(' onclick="quickBal(\''+esc(it.name).replace(/'/g,"\\'")+'\',\'reports\')"'):'');
+      // v21: в ОТЧЁТАХ карточка не нужна — сюда заходят именно за полной
+      // историей, и лишний тап только мешает. Карточка живёт в лентах,
+      // где оператор смотрит остаток мимоходом, не бросая ввод.
+      var clickAttr=' style="'+stl+'"'+(clickable?(' onclick="openClient(\''+esc(it.name).replace(/'/g,"\\'")+'\',\'reports\')"'):'');
       var age=balAge_(it);
       var quiet=(!it.pseudo && age>=14 && age<9999)?(' · '+t('balQuiet')+' '+age):'';
       h+='<div class="op-item"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+quiet+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div></div>';
@@ -2805,6 +2968,22 @@
     if(cached){
       clReportText=cached.text||''; clReportPhone=cached.phone||''; clClosing=cached.closing||0; clOpening=cached.opening||0;
       clRenderBalance(cached.closing||0,(cached.ops||[]).length); clRenderOps(cached.ops||[]);
+    } else if(clPeriodVal==='month' && opsOfClient_(name)){
+      // v22: ОПЕРАЦИИ ТЕКУЩЕГО МЕСЯЦА УЖЕ В ТЕЛЕФОНЕ — они приехали снимком.
+      // Рисуем немедленно, без запроса и без трёх точек. Сервер всё равно
+      // спросим следом (текст для WhatsApp и ревизия), но экран уже полон.
+      var _o=opsOfClient_(name);
+      var _last=_o.length?_o[_o.length-1][SO.run]:0;
+      clOpening=0;                                   // месяц начинается с нуля: до него закрытие
+      clReportText=''; clReportPhone='';
+      clRenderBalance(_last,_o.length);
+      clRenderOps(_o.map(function(x){
+        var s=String(x[SO.d]);                       // 'yyyy-MM-dd HH:mm'
+        return { datetime:s.slice(8,10)+'.'+s.slice(5,7)+' '+s.slice(11,16),
+                 action:x[SO.action], region:x[SO.place],
+                 usd:x[SO.usd], rate:x[SO.rate],
+                 rub:Math.abs(x[SO.rub]), h:x[SO.rub] };
+      }));
     } else {
       // показать хоть что-то верное СРАЗУ: за период «всё» текущий остаток
       // равен балансу из уже загруженного списка клиентов
@@ -3138,7 +3317,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 21;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 22;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -3357,6 +3536,17 @@
     if(!box) return;
     if(box.style.display==='block'){ box.style.display='none'; return; }
     box.style.display='block';
+    // v22: день текущего месяца уже лежит в снимке — рисуем и не спрашиваем
+    var loc=(day.slice(0,7)===CUR_MONTH_())?opsOfDay_(place,day):null;
+    if(loc){
+      thDayRender(box,{items:loc.map(function(x){
+        var s=String(x[SO.d]);
+        return { time:s.slice(11,16), action:x[SO.action], name:x[SO.name],
+                 usd:x[SO.usd], rate:x[SO.rate], rub:0, rubItog:x[SO.rub],
+                 profit:x[SO.profit], status:x[SO.status], executor:x[SO.executor] };
+      })});
+      return;
+    }
     var ck='day_'+place+'_'+day, c=cGet(ck);
     if(c) thDayRender(box,c);
     else box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">…</div>';
@@ -3438,7 +3628,7 @@
   // кэша, а строка сверху честно говорит, на какое время эти цифры.
   (function(){
     var c=cGet('moscow');
-    if(c) dataBarSet('', true);        // есть чем показать — предупредим, что это старое
+    if(c) dataBarSet('—', true);       // есть чем показать — но это вчерашнее
     snapLoad(false);
   })();
 </script>

@@ -1130,6 +1130,13 @@
   // выбор источника запоминается в телефоне. По умолчанию Supabase.
   // Переключается кнопкой в приложении (только admin) — без перезаливки.
   var SB_ON=(localStorage.getItem('kassa_src')!=='apps');
+  // v29: ПИШУЩИЙ ЧИТАЕТ ИЗ ИСТИНЫ. Экраны ввода (Москва/Регион/Узбекистан) читают
+  // напрямую из Apps Script — там нет отставания зеркала и «ожидающих строк»,
+  // ничего не пропадает, дата задним числом верная. Читающие экраны (отчёты,
+  // балансы, обзор, общая история) остаются на Supabase — быстро.
+  var WRITE_FROM_APPS = true;
+  function _sbRead(){ return SB_ON; }            // читающие экраны
+  function _sbWriteScr(){ return SB_ON && !WRITE_FROM_APPS; }  // экраны ввода
   function sbToggle(){
     SB_ON=!SB_ON;
     localStorage.setItem('kassa_src', SB_ON?'sb':'apps');
@@ -1820,7 +1827,7 @@
     // v23/25: лента Москвы из Supabase — острова по дням, остаток на конец дня.
     // Период Бугун/Кеча/Ҳаммаси фильтрует показ; остаток на конец дня считается
     // по всей истории (несёт базу).
-    if(SB_ON){
+    if(_sbWriteScr()){
       sbFetchBase().then(function(){
         var ov=sbComputeOverview();
         document.getElementById('mskRub').textContent=fmt(ov.moscow.rubCash)+' ₽';
@@ -1868,7 +1875,7 @@
     // v26: при Supabase дописываем свою строку в _sbLive и перерисовываем.
     // Зеркало догонит через минуту, но своя запись видна СРАЗУ, а полная лента
     // (оператор 1 и все) не пропадает — мы её не стирали, только дополнили.
-    if(SB_ON){
+    if(_sbWriteScr()){
       if(res && res.row) sbLivePrepend_(res.row, 'Москва');   // своя строка в ожидающие
       _sbTs=0;                                         // заставить перечитать Supabase
       mOpen();                                         // fetch + merge ожидающих -> лента полная
@@ -2152,7 +2159,7 @@
       BAL_TS=0; OV_TS=0;
       scrDrop_(res&&res.row?res.row.name:null); quietClear_();
       // v26: Supabase — свою строку в ожидающие, перечитать ленту начисто
-      if(SB_ON){
+      if(_sbWriteScr()){
         var reg=(pfx==='u')?'Узбекистан':(res.region||getRegionName());
         if(res && res.row) sbLivePrepend_(res.row, reg);
         _sbTs=0; reload();
@@ -2311,7 +2318,7 @@
   function uOpen(){
     updateExecAllVisibility();
     // v23: Узбекистан из Supabase — баланс, заявки, лента островами по дням
-    if(SB_ON){
+    if(_sbWriteScr()){
       sbFetchBase().then(function(){
         var d=sbRegionScreen('Узбекистан'); uApply(d);
         sbRegionFeedInto('uFeed','Узбекистан');       // острова по дням поверх
@@ -2356,7 +2363,7 @@
   function gOpen(init){
     if(!init && !gCurRegion) return;
     // v23: регионы из Supabase
-    if(SB_ON){
+    if(_sbWriteScr()){
       sbFetchBase().then(function(){
         var list=_sbReg.map(function(x){return (x.region||'').trim();})
           .filter(function(n){return n && n!=='Москва' && n!=='Узбекистан';});
@@ -3959,7 +3966,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 28;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 29;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4297,11 +4304,14 @@
     if(document.visibilityState!=='visible') return;
     if(_net) return;                                  // идёт запрос — не мешаем
     var cur=document.querySelector('.tab.sel'); var n=cur?cur.getAttribute('data-s'):null;
-    _sbTs=0;                                          // заставить перечитать Supabase
-    if(n==='moscow') mOpen();
-    else if(n==='uzb') uOpen();
-    else if(n==='region') gOpen();
-    else if(n==='reports'){ var sub=document.querySelector('.sub-tab.sel'); var sn=sub?sub.id.replace('rtab-',''):''; if(sn==='balance')balLoad(); else if(sn==='overview')ovLoad(); else if(sn==='genhist')ghLoad(); }
+    // v29: экраны ввода (Москва/Регион/Узб) читают из Apps Script — их автополлом
+    // НЕ дёргаем, иначе Apps Script под нагрузкой. Опрашиваем только читающие
+    // (отчёты), они на Supabase и лёгкие.
+    if(_sbWriteScr()){
+      _sbTs=0;
+      if(n==='moscow') mOpen(); else if(n==='uzb') uOpen(); else if(n==='region') gOpen();
+    }
+    if(n==='reports'){ var sub=document.querySelector('.sub-tab.sel'); var sn=sub?sub.id.replace('rtab-',''):''; if(sn==='balance')balLoad(); else if(sn==='overview')ovLoad(); else if(sn==='genhist')ghLoad(); }
   }, 15000);
 
   // v25: при чтении из Supabase снимок Apps Script НЕ нужен — он сканировал

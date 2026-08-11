@@ -1158,7 +1158,7 @@
     return Promise.all([
       sbGet('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.desc&limit=5000'),
       sbGet('regions?select=*')
-    ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); });
+    ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); _sbMergePending(); });
   }
   // v23: счётчик сделок и дата последней — по ВСЕЙ истории (live+архивы).
   // Лёгкий запрос: только имя, дата, id, статус. Кэш 5 минут.
@@ -1261,7 +1261,7 @@
   }
   function _sbDay(r){return (r.dt||'').slice(0,10);}
   function _sbHHMM(r){return (r.dt||'').slice(11,16);}
-  var _WD=['якш','душ','сеш','чор','пай','жум','шан'];
+  function _WDay(i){ var a=t('wd').split(','); return a[i]||''; }   // v26: дни недели по языку
   // острова по дням из строк Supabase. rows свежие-сверху. place -> остаток на конец дня.
   function sbFeedDays(rows, place, allRows){
     var days={}; rows.forEach(function(r){var d=_sbDay(r);(days[d]=days[d]||[]).push(r);});
@@ -1271,7 +1271,7 @@
     var endBal=(place&&allRows)?sbEndBal(allRows,place):null;
     return keys.map(function(d){
       var list=days[d], dd=new Date(d+'T12:00:00');
-      var lbl=(d===tod?'Бугун':d===yd?'Кеча':(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WD[dd.getDay()];
+      var lbl=(d===tod?t('today'):d===yd?t('yesterday'):(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WDay(dd.getDay());
       var h='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
       h+=list.map(sbFeedRow).join('');
       if(endBal&&endBal[d]!==undefined){
@@ -1858,12 +1858,57 @@
     document.getElementById('mFeedYesterday').classList.remove('sel');
     BAL_TS=0; OV_TS=0;                                // отчёты обязаны освежиться
     scrDrop_(res&&res.row?res.row.name:null); quietClear_();
+    // v26: при Supabase дописываем свою строку в _sbLive и перерисовываем.
+    // Зеркало догонит через минуту, но своя запись видна СРАЗУ, а полная лента
+    // (оператор 1 и все) не пропадает — мы её не стирали, только дополнили.
+    if(SB_ON){
+      if(res && res.row) sbLivePrepend_(res.row, 'Москва');   // своя строка в ожидающие
+      _sbTs=0;                                         // заставить перечитать Supabase
+      mOpen();                                         // fetch + merge ожидающих -> лента полная
+      return;
+    }
     if(!res || !res.row){ mOpen(); return; }          // бэкенд старый — как раньше
     var c=cGet('moscow') || {ok:true,feed:[],balance:{}};
     c.feed=[res.row].concat(c.feed||[]);
     if(res.balance){ c.balance={rub:res.balance.rub, usd:res.balance.usd}; }
     c.rev=null;                                        // ревизия чужая — заставим проверить
     cPut('moscow',c); mApply(c);
+  }
+  // v26: ОЖИДАЮЩИЕ строки. Своя запись уже в Google-таблице (книга истины) и в
+  // ответе сервера (res.row), но в Supabase попадёт через минуту (флаш очереди).
+  // Держим её локально, пока зеркало не догонит, чтобы своё было видно сразу и
+  // лента не «моргала». Когда Supabase её подхватит — из ожидающих убираем.
+  var _sbPending=[];
+  function _sbKey(r){
+    var d=String(r.dt||'').slice(0,16);   // до минуты
+    return (r.name||'')+'|'+(r.place||'')+'|'+Math.round(Number(r.usd||0))+'|'+Math.round(Number(r.rub_itog||0))+'|'+d;
+  }
+  function sbLivePrepend_(row, place){
+    // res.row: Москва {rub(E,знак),usd(знак)}; регион {usd(знак),rub=|H|}
+    var now=new Date();
+    var iso=now.toISOString().slice(0,10)+' '+now.toTimeString().slice(0,5);
+    var pl=row.place||place||'Москва';
+    var usd=Number(row.usd||0);
+    var ritog=(pl==='Москва') ? Number(row.rub||0)          // Москва: рубль-итог = E
+                               : (usd<0?-1:1)*Math.abs(Number(row.rub||0)); // регион: знак по $
+    var sbrow={ name:row.name||'', place:pl, action:row.action||'',
+      rub:(pl==='Москва'?Number(row.rub||0):0), usd:usd, rate:row.rate||'',
+      rub_itog:ritog, profit:Number(row.profit||0), status:row.status||'актив',
+      executor:'', operator:row.operator||USER_NAME, note:row.note||'', dt:iso, id:'local_'+Date.now() };
+    _sbPending.unshift({sbrow:sbrow, key:_sbKey(sbrow), ts:Date.now()});
+    if(_sbLive) _sbMergePending();
+  }
+  // слить ожидающие в _sbLive: убрать те, что Supabase уже подхватил или старше 2 мин
+  function _sbMergePending(){
+    if(!_sbLive) return;
+    var haveKeys={}; _sbLive.forEach(function(r){ haveKeys[_sbKey(r)]=1; });
+    _sbPending=_sbPending.filter(function(p){
+      if(haveKeys[p.key]) return false;               // Supabase догнал — убрать
+      if(Date.now()-p.ts>120000) return false;        // 2 минуты — флаш точно прошёл
+      return true;
+    });
+    // дописать оставшиеся ожидающие в начало _sbLive (если их там ещё нет)
+    _sbPending.forEach(function(p){ if(!haveKeys[p.key]) _sbLive.unshift(p.sbrow); });
   }
   var mFeedPeriodVal='today';
   function mFeedPeriod(p){
@@ -2096,6 +2141,13 @@
       }
       BAL_TS=0; OV_TS=0;
       scrDrop_(res&&res.row?res.row.name:null); quietClear_();
+      // v26: Supabase — свою строку в ожидающие, перечитать ленту начисто
+      if(SB_ON){
+        var reg=(pfx==='u')?'Узбекистан':(res.region||getRegionName());
+        if(res && res.row) sbLivePrepend_(res.row, reg);
+        _sbTs=0; reload();
+        return;
+      }
       if(!res || !res.row){ reload(); return; }
       var key=(pfx==='u')?'uzb':('reg_'+(res.region||getRegionName()));
       var c=cGet(key);
@@ -2854,7 +2906,7 @@
       var h=keys.length?'':'<div class="empty">'+t('noOps2')+'</div>';
       keys.forEach(function(d){
         var list=days[d], dd=new Date(d+'T12:00:00');
-        var lbl=(d===tod?'Бугун':d===yd?'Кеча':(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WD[dd.getDay()];
+        var lbl=(d===tod?t('today'):d===yd?t('yesterday'):(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WDay(dd.getDay());
         var prof=0; list.forEach(function(r){prof+=Number(r.profit||0);});
         h+='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
         h+=list.map(function(r){
@@ -2882,7 +2934,7 @@
       sbFetchBase().then(function(){
         var d=sbComputeOverview();
         OV_DATA=d; OV_TS=Date.now(); cPut('ovw',d); ovRender(d);
-        sbGuard(Math.round(d.farq));
+        sbGuard(d);
         quietSet_('ovw');
       }).catch(function(){ if(!OV_DATA) document.getElementById('ovBox').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
       return;
@@ -2995,7 +3047,7 @@
         document.getElementById('balTotalPlus').textContent=fmt(r.totalPlus)+' ₽';
         document.getElementById('balTotalMinus').textContent=fmt(r.totalMinus)+' ₽';
         balRender();
-        sbGuard(r.farq);                              // сторож farq — виден admin
+        sbGuard(r);                                   // сторож: строки+сумма, виден admin
         quietSet_('bal');
       }).catch(function(){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
       return;
@@ -3022,34 +3074,43 @@
     var bar=document.createElement('div'); bar.id='sbBar';
     bar.style.cssText='display:flex;align-items:center;gap:8px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 11px;margin-bottom:10px;font-size:11px;font-weight:700;box-sizing:border-box';
     bar.innerHTML='<div id="sbBtn" style="border:1px solid;border-radius:14px;padding:4px 11px;cursor:pointer;white-space:nowrap"></div>'+
-      '<div id="sbFarqSb" style="color:var(--muted);white-space:nowrap">farq —</div>'+
-      '<div id="sbFarqApps" style="margin-left:auto;color:var(--muted);white-space:nowrap;cursor:pointer;text-decoration:underline dotted">свериться с Apps</div>';
+      '<div id="sbDiff" style="margin-left:auto;color:var(--muted);white-space:nowrap;cursor:pointer;text-decoration:underline dotted">свериться с Apps</div>';
     app.insertBefore(bar, app.firstChild);
     document.getElementById('sbBtn').onclick=sbToggle;
-    document.getElementById('sbFarqApps').onclick=sbCheckApps;   // сверка ТОЛЬКО по тапу
+    document.getElementById('sbDiff').onclick=sbCheckApps;   // сверка ТОЛЬКО по тапу
     sbBtnPaint();
   }
-  var _sbLastFarq=0;
-  function sbGuard(farq){
+  // Supabase-сторона сверки: число строк live и сумма хакдор — считаем при загрузке
+  var _sbRows=0,_sbHak=0;
+  function sbGuard(r){
     if(USER_ROLE!=='admin') return;
     sbEnsureUI();
-    _sbLastFarq=farq;
-    var el=document.getElementById('sbFarqSb'); if(!el) return;
-    if(Math.abs(farq)<1){ el.style.color='var(--plus)'; el.textContent='✓ SB farq 0'; }
-    else{ el.style.color='var(--minus)'; el.textContent='⚠ SB farq '+fmt(farq); }
+    _sbRows=_sbLive?_sbLive.filter(function(x){return String(x.id||'').indexOf('me_')!==0 && (x.status||'')!=='отменён';}).length:0;
+    _sbHak=Math.round((r&&(r.totalPlus!==undefined?r.totalPlus:r.hakdor))||0);
   }
-  // v25: сверка с Apps Script — тяжёлый getOverview, поэтому ТОЛЬКО по тапу,
-  // а не на каждой загрузке. Иначе заход тормозил на скан листа.
+  // v26: сверка по ЧИСЛУ СТРОК и СУММЕ. Разница = Apps − Supabase.
+  // Оба нуля — зелёным «строки 0 · сумма 0». Иначе красным, видно где потерялось.
   function sbCheckApps(){
-    var ap=document.getElementById('sbFarqApps'); if(!ap) return;
+    var ap=document.getElementById('sbDiff'); if(!ap) return;
     ap.textContent='сверяю…'; ap.style.color='var(--muted)';
-    sbAppsFarq(function(){
-      if(_sbAppsFarq===null){ ap.textContent='Apps: нет ответа'; return; }
-      var same=(Math.abs(_sbAppsFarq-_sbLastFarq)<1);
-      ap.style.color=same?'var(--plus)':'var(--minus)';
-      ap.textContent=(same?'✓ = Apps '+_sbAppsFarq:'≠ Apps '+_sbAppsFarq);
-    });
+    // getOverview даёт хакдор; число строк — из getClientsBalance? нет, отдельно.
+    // Берём хакдор из getOverview и число строк из лёгкого count — но у нас есть
+    // только getOverview. Число строк Apps узнаём через checkClientsSync? Проще:
+    // getOverview отдаёт hakdor; строки сравним по числу операций из snapshot 'D'.
+    apiCall('getOverview',{},AUTH_TOKEN,true).then(function(o){
+      var appsHak=(o&&o.ok)?Math.round(o.hakdor||0):null;
+      apiCall('openSnapshot',{part:'d1',rev:''},AUTH_TOKEN,true).then(function(d1){
+      apiCall('openSnapshot',{part:'d2',rev:''},AUTH_TOKEN,true).then(function(d2){
+        var appsRows=((d1&&d1.total)||0);
+        var diffRows=(appsRows||0)-_sbRows;
+        var diffSum=(appsHak===null)?null:(appsHak-_sbHak);
+        var ok=(Math.abs(diffRows)<1 && diffSum!==null && Math.abs(diffSum)<1);
+        ap.style.color=ok?'var(--plus)':'var(--minus)';
+        ap.textContent=(ok?'✓ ':'⚠ ')+'строки '+diffRows+' · сумма '+(diffSum===null?'?':fmt(diffSum));
+      }).catch(function(){ apFail(ap); }); }).catch(function(){ apFail(ap); });
+    }).catch(function(){ apFail(ap); });
   }
+  function apFail(ap){ ap.textContent='Apps: нет ответа'; ap.style.color='var(--muted)'; }
   function balFilter(f){
     balCurFilter=f;
     document.getElementById('balfAll').classList.toggle('sel',f==='all');
@@ -3854,7 +3915,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 25;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 26;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4184,6 +4245,20 @@
   applyI18n();
   buildTabs();
   sbEnsureUI();   // v23: кнопка «источник данных» — только admin
+
+  // v26: АВТООПРОС — смотрящий видит чужие записи без нажатий. Раз в 15 сек,
+  // только если экран открыт и это Supabase-экран. Лёгкий запрос (~300 мс).
+  setInterval(function(){
+    if(!SB_ON) return;
+    if(document.visibilityState!=='visible') return;
+    if(_net) return;                                  // идёт запрос — не мешаем
+    var cur=document.querySelector('.tab.sel'); var n=cur?cur.getAttribute('data-s'):null;
+    _sbTs=0;                                          // заставить перечитать Supabase
+    if(n==='moscow') mOpen();
+    else if(n==='uzb') uOpen();
+    else if(n==='region') gOpen();
+    else if(n==='reports'){ var sub=document.querySelector('.sub-tab.sel'); var sn=sub?sub.id.replace('rtab-',''):''; if(sn==='balance')balLoad(); else if(sn==='overview')ovLoad(); else if(sn==='genhist')ghLoad(); }
+  }, 15000);
 
   // v25: при чтении из Supabase снимок Apps Script НЕ нужен — он сканировал
   // весь лист и держал заход 9 секунд. Экраны сами тянут из Supabase быстро.

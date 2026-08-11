@@ -1155,9 +1155,26 @@
   function sbFetchBase(){
     if(_sbLive&&_sbReg&&Date.now()-_sbTs<20000) return Promise.resolve();
     return Promise.all([
-      sbGet('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,dt,id&order=dt.desc&limit=5000'),
+      sbGet('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.desc&limit=5000'),
       sbGet('regions?select=*')
     ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); });
+  }
+  // v23: счётчик сделок и дата последней — по ВСЕЙ истории (live+архивы).
+  // Лёгкий запрос: только имя, дата, id, статус. Кэш 5 минут.
+  var _sbMeta=null,_sbMetaTs=0;
+  function sbFetchMeta(){
+    if(_sbMeta&&Date.now()-_sbMetaTs<300000) return Promise.resolve();
+    return sbGet('operations?select=name,dt,id,status&limit=20000').then(function(rows){
+      var m={};
+      rows.forEach(function(r){
+        var nm=(r.name||'').trim();
+        if(!nm||nm==='Остаток'||nm==='Обмен'||r.status==='отменён')return;
+        if(String(r.id||'').indexOf('me_')===0)return;
+        if(!m[nm])m[nm]={count:0,last:''};
+        m[nm].count++; var d=(r.dt||'').slice(0,10); if(d>m[nm].last)m[nm].last=d;
+      });
+      _sbMeta=m; _sbMetaTs=Date.now();
+    });
   }
   // ТОЧНАЯ копия getClientsBalance -> items в формате приложения
   function sbComputeBalance(){
@@ -2193,7 +2210,7 @@
     function reqItem(r){return {id:r.id,action:(Number(r.usd||0)>0?'oldim':'berdim'),region:region,name:r.name,
       usd:Number(r.usd||0),rub:Math.abs(Number(r.rub_itog||0)),rate:r.rate,note:r.note||'',operator:r.operator||'',
       executor:r.executor||'',time:(r.dt||'').slice(8,10)+'.'+(r.dt||'').slice(5,7)+' '+(r.dt||'').slice(11,16)};}
-    return {ok:true,balance:{usd:usd,avg:avg,profit:profit},
+    return {ok:true,region:region,balance:{usd:usd,avg:avg,profit:profit},
       summary:{onHand:usd,pending:pending,count:zay.length},
       feed:_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()!=='отменён' && String(r.id||'').indexOf('me_')!==0;}),
       requests:{active:zay.map(reqItem),done:isp.slice(0,15).map(reqItem)},
@@ -2272,7 +2289,7 @@
         var list=_sbReg.map(function(x){return (x.region||'').trim();})
           .filter(function(n){return n && n!=='Москва' && n!=='Узбекистан';});
         if(!gCurRegion && list.length) gCurRegion=list[0];
-        var d=sbRegionScreen(gCurRegion); d.regions=['Москва'].concat(list).concat(['Узбекистан']);
+        var d=sbRegionScreen(gCurRegion); d.regions=list;   // без Москвы и Узбекистана — у них свои вкладки
         gApplyCached(d);
         sbRegionFeedInto('gFeed',gCurRegion);         // острова по дням поверх
         quietSet_('reg_'+gCurRegion);
@@ -2430,6 +2447,15 @@
     document.getElementById('rPendCnt').textContent=s.count+' та';
   }
   function rRefresh(){
+    // v23: заявки Узбекистана из Supabase — все активные, без обрезки
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var d=sbRegionScreen('Узбекистан');
+        rRenderReq({ok:true,active:d.requests.active,done:d.requests.done});
+        rSummary({onHand:d.summary.onHand,pending:d.summary.pending,count:d.summary.count});
+      }).catch(function(){});
+      return;
+    }
     var c=cGet('req');
     if(c){ rSummary(c.sum); rRenderReq(c.req); }      // мгновенно из кэша
     apiCall('getRequests',{rev:revOf_(c&&c.req)},AUTH_TOKEN,!!c).then(function(res){
@@ -2503,11 +2529,11 @@
     // v15: сервер отдаёт уже склеенную пару — одна строка на перевод
     var h='';
     res.items.forEach(function(it){
-      var meta=it.datetime+(it.memo?(' · '+esc(it.memo)):'')+' · '+esc(it.operator);
+      var meta=it.datetime+' · '+esc(it.operator)+(it.memo?(' · '+esc(it.memo)):'');
       h+='<div class="op-item"'+feedClick(it.from,'transfer')+'><div class="op-left">'+
-         '<div class="nm">'+esc(it.from)+' → '+esc(it.to)+'</div>'+
+         '<div class="nm">'+esc(it.from)+' <span style="color:var(--muted)">→</span> '+esc(it.to)+'</div>'+
          '<div class="mt">'+meta+'</div></div>'+
-         '<div class="op-amt">'+fmt(Math.abs(it.sum))+' ₽</div></div>';
+         '<div class="op-amt plus" style="white-space:nowrap;">'+fmt(Math.abs(it.sum))+' ₽</div></div>';
     });
     box.innerHTML=h;
   }
@@ -2791,7 +2817,7 @@
     if(!GH_INIT){
       GH_INIT=true;
       sbFetchBase().then(function(){
-        var places={}; _sbLive.forEach(function(r){var p=(r.place||'').trim();if(p)places[p]=1;});
+        var places={}; _sbLive.forEach(function(r){var p=(r.place||'').trim();if(p&&p!=='Москва')places[p]=1;});  // только регионы, Москва отдельно
         var list=['(все регионы)'].concat(Object.keys(places).sort());
         document.getElementById('ghPlace').innerHTML=list.map(function(p){return '<option>'+esc(p)+'</option>';}).join('');
         ghLoad();
@@ -2806,6 +2832,7 @@
       var rows=_sbLive.filter(function(r){
         if((r.status||'').trim()==='отменён') return false;
         if(String(r.id||'').indexOf('me_')===0) return false;
+        if((r.place||'').trim()==='Москва') return false;   // общая история — только регионы
         if(place && place!=='(все регионы)' && (r.place||'').trim()!==place) return false;
         return true;
       });
@@ -2896,8 +2923,11 @@
 
     // v23: чтение из SUPABASE. Рубильник SB_ON=false — возврат на Apps Script.
     if(SB_ON){
-      sbFetchBase().then(function(){
+      Promise.all([sbFetchBase(),sbFetchMeta()]).then(function(){
         var r=sbComputeBalance();
+        // v23: счётчик и дата последней сделки — из полной истории
+        if(_sbMeta){ r.items.forEach(function(x){ if(x.pseudo)return; var m=_sbMeta[x.name];
+          if(m){ x.count=m.count; x.last=m.last?(m.last.slice(8,10)+'.'+m.last.slice(5,7)):''; } }); }
         BAL_DATA=r.items; BAL_TS=Date.now();
         _balC={rev:'sb',items:BAL_DATA,totalPlus:r.totalPlus,totalMinus:r.totalMinus};
         cPut('bal',_balC);
@@ -2927,12 +2957,13 @@
   function sbEnsureUI(){
     if(USER_ROLE!=='admin') return;
     if(document.getElementById('sbBar')) return;
+    var app=document.querySelector('.app')||document.body;
     var bar=document.createElement('div'); bar.id='sbBar';
-    bar.style.cssText='position:sticky;top:0;z-index:99;display:flex;align-items:center;gap:8px;background:var(--card);border-bottom:1px solid var(--line);padding:5px 10px;font-size:11px;font-weight:700';
-    bar.innerHTML='<div id="sbBtn" style="border:1px solid;border-radius:14px;padding:4px 11px;cursor:pointer"></div>'+
-      '<div id="sbFarqSb" style="color:var(--muted)">farq —</div>'+
-      '<div id="sbFarqApps" style="margin-left:auto;color:var(--muted)">Apps —</div>';
-    document.body.insertBefore(bar, document.body.firstChild);
+    bar.style.cssText='display:flex;align-items:center;gap:8px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 11px;margin-bottom:10px;font-size:11px;font-weight:700;box-sizing:border-box';
+    bar.innerHTML='<div id="sbBtn" style="border:1px solid;border-radius:14px;padding:4px 11px;cursor:pointer;white-space:nowrap"></div>'+
+      '<div id="sbFarqSb" style="color:var(--muted);white-space:nowrap">farq —</div>'+
+      '<div id="sbFarqApps" style="margin-left:auto;color:var(--muted);white-space:nowrap">Apps —</div>';
+    app.insertBefore(bar, app.firstChild);
     document.getElementById('sbBtn').onclick=sbToggle;
     sbBtnPaint();
   }

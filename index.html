@@ -1108,6 +1108,85 @@
   var USER_ROLE=localStorage.getItem('kassa_role')||'';
   var USER_NAME=localStorage.getItem('kassa_name')||'';
   if(!AUTH_TOKEN){ location.href='login.html'; }
+
+  // ========================================================
+  // v23: ЧТЕНИЕ ИЗ SUPABASE (пилот переезда).
+  // Запись остаётся в Apps Script — это книга истины. Supabase зеркалит
+  // каждую операцию (живое зеркало в Moscow/Region/Reactions.gs) и отдаёт
+  // чтение быстро, без очереди.
+  // SB_ON=false мгновенно возвращает чтение на Apps Script (рубильник).
+  // ВНИМАНИЕ: ключ пока anon — читаемо по ключу. Замок за логином — след. шаг.
+  // ========================================================
+  // выбор источника запоминается в телефоне. По умолчанию Supabase.
+  // Переключается кнопкой в приложении (только admin) — без перезаливки.
+  var SB_ON=(localStorage.getItem('kassa_src')!=='apps');
+  function sbToggle(){
+    SB_ON=!SB_ON;
+    localStorage.setItem('kassa_src', SB_ON?'sb':'apps');
+    sbBtnPaint();
+    BAL_TS=0; quietClear_(); _sbTs=0;   // сбросить кэш, перечитать из нового источника
+    if(typeof balLoad==='function') balLoad();
+  }
+  function sbBtnPaint(){
+    var b=document.getElementById('sbBtn'); if(!b) return;
+    b.textContent=SB_ON?'⚡ Supabase':'🐢 Apps Script';
+    b.style.background=SB_ON?'rgba(61,220,132,.15)':'rgba(139,145,156,.15)';
+    b.style.borderColor=SB_ON?'var(--plus)':'var(--muted)';
+    b.style.color=SB_ON?'var(--plus)':'var(--muted)';
+  }
+  var SB_URL='https://bmnqmjuotpwwjejzefed.supabase.co';
+  var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
+  var _sbH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+  function sbGet(path){ return fetch(SB_URL+'/rest/v1/'+path,{headers:_sbH}).then(function(r){return r.json();}); }
+  function _sbFactRub(r){ return (String(r.action||'').trim()==='Обмен')?Math.abs(Number(r.rub||0)):Math.abs(Number(r.rub_itog||0)); }
+  var _sbLive=null,_sbReg=null,_sbTs=0;
+  // забрать live-операции и регионы (кэш 20 сек, чтобы не дёргать зря)
+  function sbFetchBase(){
+    if(_sbLive&&_sbReg&&Date.now()-_sbTs<20000) return Promise.resolve();
+    return Promise.all([
+      sbGet('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,dt,id&order=dt.desc&limit=5000'),
+      sbGet('regions?select=*')
+    ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); });
+  }
+  // ТОЧНАЯ копия getClientsBalance -> items в формате приложения
+  function sbComputeBalance(){
+    var ops=_sbLive,reg=_sbReg,map={},tzToday=new Date().toISOString().slice(0,10);
+    ops.forEach(function(r){
+      var nm=(r.name||'').trim();
+      if(!nm||nm==='Остаток'||nm==='Обмен'||r.status==='отменён')return;
+      if(!map[nm])map[nm]={balance:0,count:0,last:null};
+      map[nm].balance+=Number(r.rub_itog||0);
+      if(String(r.id||'').indexOf('me_')===0)return;
+      map[nm].count++;
+      var d=(r.dt||'').slice(0,10);
+      if(!map[nm].last||d>map[nm].last)map[nm].last=d;
+    });
+    var items=[];
+    for(var nm in map){
+      var d=map[nm].last;
+      items.push({name:nm,balance:map[nm].balance,count:map[nm].count,
+        last:d?(d.slice(8,10)+'.'+d.slice(5,7)):'',today:(d===tzToday),pseudo:false,sub:''});
+    }
+    // псевдоклиенты из regions
+    var regCost={},mbRub=0,mbUsd=0;
+    ops.forEach(function(r){
+      if(r.status==='отменён')return; var pl=(r.place||'').trim();
+      if(pl){var u=Number(r.usd||0),fr=_sbFactRub(r),pf=Number(r.profit||0);if(regCost[pl]===undefined)regCost[pl]=0;if(u>0)regCost[pl]+=fr+pf;else if(u<0)regCost[pl]+=pf-fr;}
+      if(pl==='Москва'){mbRub+=Number(r.rub||0);mbUsd+=Number(r.usd||0);}
+    });
+    reg.forEach(function(rg){
+      var rnm=(rg.region||'').trim();if(!rnm)return;
+      var usd=Number(rg.usd||0),avg=Number(rg.avg||0),profitTot=Number(rg.profit_total||0)+Number(rg.profit_start||0);
+      var costRub,subUsd;
+      if(rnm==='Москва'){costRub=mbRub+(regCost['Москва']!==undefined?regCost['Москва']:Math.round(mbUsd*avg));subUsd=mbUsd;}
+      else{costRub=(regCost[rnm]!==undefined?regCost[rnm]:Math.round(usd*avg));subUsd=usd;}
+      if(rnm!=='Москва'&&subUsd===0&&costRub!==0){profitTot-=costRub;costRub=0;}
+      if(costRub!==0)items.push({name:(rnm==='Москва'?'Касса Москва':'Остаток '+rnm),balance:-costRub,count:0,last:'',today:false,pseudo:true,sub:'$'+fmt(subUsd)+' · ср '+String(Math.round(avg*100)/100).replace('.',',')});
+      if(profitTot!==0)items.push({name:'Прибыль '+rnm,balance:profitTot,count:0,last:'',today:false,pseudo:true,sub:'фойда'});
+    });
+    var tp=0,tm=0; items.forEach(function(x){if(x.balance>0)tp+=x.balance;else if(x.balance<0)tm+=x.balance;});
+    return {items:items,totalPlus:tp,totalMinus:Math.abs(tm),farq:Math.round(items.reduce(function(s,x){return s+x.balance;},0))};
+  }
   function logout(){
     localStorage.removeItem('kassa_token');
     localStorage.removeItem('kassa_role');
@@ -2551,6 +2630,23 @@
       }
     }
     if(!first && quietOk_('bal')) return;             // проверяли только что — сеть не нужна
+
+    // v23: чтение из SUPABASE. Рубильник SB_ON=false — возврат на Apps Script.
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var r=sbComputeBalance();
+        BAL_DATA=r.items; BAL_TS=Date.now();
+        _balC={rev:'sb',items:BAL_DATA,totalPlus:r.totalPlus,totalMinus:r.totalMinus};
+        cPut('bal',_balC);
+        document.getElementById('balTotalPlus').textContent=fmt(r.totalPlus)+' ₽';
+        document.getElementById('balTotalMinus').textContent=fmt(r.totalMinus)+' ₽';
+        balRender();
+        sbGuard(r.farq);                              // сторож farq — виден admin
+        quietSet_('bal');
+      }).catch(function(){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+
     apiCall('getClientsBalance',{fresh:_forceFresh?1:0,rev:first?'':revOf_(_balC)},AUTH_TOKEN,!first).then(function(res){
       if(!res||!res.ok){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       quietSet_('bal');
@@ -2562,6 +2658,29 @@
       document.getElementById('balTotalMinus').textContent=fmt(res.totalMinus)+' ₽';
       balRender();
     }).catch(function(){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+  }
+  // v23: кнопка переключения источника + сторож farq. Видит только admin.
+  function sbEnsureUI(){
+    if(USER_ROLE!=='admin') return;
+    if(!document.getElementById('sbBtn')){
+      var b=document.createElement('div'); b.id='sbBtn';
+      b.style.cssText='position:fixed;right:8px;bottom:56px;z-index:99;border:1px solid;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer';
+      b.onclick=sbToggle;
+      document.body.appendChild(b); sbBtnPaint();
+    }
+  }
+  function sbGuard(farq){
+    if(USER_ROLE!=='admin') return;
+    sbEnsureUI();
+    var el=document.getElementById('sbGuard');
+    if(!el){
+      el=document.createElement('div'); el.id='sbGuard';
+      el.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:700;text-align:center';
+      document.body.appendChild(el);
+    }
+    el.style.display='block';
+    if(Math.abs(farq)<1){ el.style.background='rgba(61,220,132,.15)'; el.style.border='1px solid var(--plus)'; el.style.color='var(--plus)'; el.textContent='✓ Supabase · farq 0'; clearTimeout(el._t); el._t=setTimeout(function(){el.style.display='none';},3000); }
+    else{ el.style.background='rgba(255,107,107,.15)'; el.style.border='1px solid var(--minus)'; el.style.color='var(--minus)'; el.textContent='⚠ Supabase farq '+fmt(farq)+' ₽ — проверь'; }
   }
   function balFilter(f){
     balCurFilter=f;
@@ -3317,7 +3436,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 22;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 23;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -3623,6 +3742,7 @@
   if(!Object.keys(CUR).length) curLoad();
   applyI18n();
   buildTabs();
+  sbEnsureUI();   // v23: кнопка «источник данных» — только admin
 
   // v21: заход одним расчётом. Пока он идёт, экраны рисуются из вчерашнего
   // кэша, а строка сверху честно говорит, на какое время эти цифры.

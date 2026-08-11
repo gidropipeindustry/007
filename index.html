@@ -3041,6 +3041,18 @@
         // v23: счётчик и дата последней сделки — из полной истории
         if(_sbMeta){ r.items.forEach(function(x){ if(x.pseudo)return; var m=_sbMeta[x.name];
           if(m){ x.count=m.count; x.last=m.last?(m.last.slice(8,10)+'.'+m.last.slice(5,7)):''; } }); }
+        // v27: добавить клиентов из ВСЕЙ истории, которых нет в текущем списке
+        // (баланс 0, в этом месяце тихо) — чтобы находились в поиске и открывались.
+        if(_sbMeta){
+          var have={}; r.items.forEach(function(x){ have[x.name]=1; });
+          for(var nm in _sbMeta){
+            if(have[nm]) continue;
+            var m=_sbMeta[nm];
+            r.items.push({name:nm, balance:0, count:m.count,
+              last:m.last?(m.last.slice(8,10)+'.'+m.last.slice(5,7)):'',
+              today:false, pseudo:false, sub:''});
+          }
+        }
         BAL_DATA=r.items; BAL_TS=Date.now();
         _balC={rev:'sb',items:BAL_DATA,totalPlus:r.totalPlus,totalMinus:r.totalMinus};
         cPut('bal',_balC);
@@ -3080,34 +3092,37 @@
     document.getElementById('sbDiff').onclick=sbCheckApps;   // сверка ТОЛЬКО по тапу
     sbBtnPaint();
   }
-  // Supabase-сторона сверки: число строк live и сумма хакдор — считаем при загрузке
+  // Supabase-сторона сверки — считаем ТОЧНО так же, как sbVerify на бэкенде:
+  // число реальных операций (без me_, отменённых, Остаток/Обмен) и хакдор
+  // (положительные долги реальных клиентов).
   var _sbRows=0,_sbHak=0;
   function sbGuard(r){
     if(USER_ROLE!=='admin') return;
     sbEnsureUI();
-    _sbRows=_sbLive?_sbLive.filter(function(x){return String(x.id||'').indexOf('me_')!==0 && (x.status||'')!=='отменён';}).length:0;
-    _sbHak=Math.round((r&&(r.totalPlus!==undefined?r.totalPlus:r.hakdor))||0);
+    if(_sbLive){
+      _sbRows=_sbLive.filter(function(x){
+        var nm=(x.name||'').trim();
+        return String(x.id||'').indexOf('me_')!==0 && (x.status||'')!=='отменён'
+          && nm && nm!=='Остаток' && nm!=='Обмен';
+      }).length;
+    }
+    // хакдор реальных клиентов = totalPlus МИНУС псевдоклиенты (касса/остаток/прибыль)
+    var hak=0;
+    (r&&r.items||BAL_DATA||[]).forEach(function(x){ if(!x.pseudo && x.balance>0) hak+=x.balance; });
+    _sbHak=Math.round(hak);
   }
-  // v26: сверка по ЧИСЛУ СТРОК и СУММЕ. Разница = Apps − Supabase.
-  // Оба нуля — зелёным «строки 0 · сумма 0». Иначе красным, видно где потерялось.
+  // v27: сверка через ЛЁГКУЮ sbVerify (один скан, не openSnapshot).
+  // Разница = Apps − Supabase, по строкам и сумме. Оба нуля — зелёным.
   function sbCheckApps(){
     var ap=document.getElementById('sbDiff'); if(!ap) return;
     ap.textContent='сверяю…'; ap.style.color='var(--muted)';
-    // getOverview даёт хакдор; число строк — из getClientsBalance? нет, отдельно.
-    // Берём хакдор из getOverview и число строк из лёгкого count — но у нас есть
-    // только getOverview. Число строк Apps узнаём через checkClientsSync? Проще:
-    // getOverview отдаёт hakdor; строки сравним по числу операций из snapshot 'D'.
-    apiCall('getOverview',{},AUTH_TOKEN,true).then(function(o){
-      var appsHak=(o&&o.ok)?Math.round(o.hakdor||0):null;
-      apiCall('openSnapshot',{part:'d1',rev:''},AUTH_TOKEN,true).then(function(d1){
-      apiCall('openSnapshot',{part:'d2',rev:''},AUTH_TOKEN,true).then(function(d2){
-        var appsRows=((d1&&d1.total)||0);
-        var diffRows=(appsRows||0)-_sbRows;
-        var diffSum=(appsHak===null)?null:(appsHak-_sbHak);
-        var ok=(Math.abs(diffRows)<1 && diffSum!==null && Math.abs(diffSum)<1);
-        ap.style.color=ok?'var(--plus)':'var(--minus)';
-        ap.textContent=(ok?'✓ ':'⚠ ')+'строки '+diffRows+' · сумма '+(diffSum===null?'?':fmt(diffSum));
-      }).catch(function(){ apFail(ap); }); }).catch(function(){ apFail(ap); });
+    apiCall('sbVerify',{},AUTH_TOKEN,true).then(function(v){
+      if(!v||!v.ok){ apFail(ap); return; }
+      var diffRows=(v.rows||0)-_sbRows;
+      var diffSum=Math.round((v.hakdor||0)-_sbHak);
+      var ok=(Math.abs(diffRows)<1 && Math.abs(diffSum)<1);
+      ap.style.color=ok?'var(--plus)':'var(--minus)';
+      ap.textContent=(ok?'✓ ':'⚠ ')+'строки '+diffRows+' · сумма '+fmt(diffSum);
     }).catch(function(){ apFail(ap); });
   }
   function apFail(ap){ ap.textContent='Apps: нет ответа'; ap.style.color='var(--muted)'; }
@@ -3915,7 +3930,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 26;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 27;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

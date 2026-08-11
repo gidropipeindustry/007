@@ -513,6 +513,7 @@
       <div class="sub-tab sel" id="rtab-balance" onclick="repTab('balance')" data-i18n="rptBalance">Мижозлар баланси</div>
       <div class="sub-tab" id="rtab-daily" onclick="repTab('daily')" data-i18n="rptDaily">Кунлик</div>
       <div class="sub-tab" id="rtab-overview" onclick="repTab('overview')" data-i18n="rptOverview">Умумий ҳолат</div>
+      <div class="sub-tab" id="rtab-genhist" onclick="repTab('genhist')" data-i18n="genHist">Умумий тарих</div>
       <div class="sub-tab" id="rtab-monthly" onclick="repTab('monthly')" data-i18n="rptMonthly">Ойлик</div>
       <div class="sub-tab" id="rtab-history" onclick="repTab('history')" data-i18n="rptHistory">Тарих</div>
     </div>
@@ -575,6 +576,12 @@
 
     <div id="repPane-overview" class="hidden">
       <div id="ovBox"><div class="loading">…</div></div>
+    </div>
+    <div id="repPane-genhist" class="hidden">
+      <div class="row2" style="margin-bottom:10px;">
+        <div><label data-i18n="lblPlace">Место</label><select id="ghPlace" onchange="ghLoad()"></select></div>
+      </div>
+      <div id="ghBox"><div class="loading">…</div></div>
     </div>
     <div id="repPane-monthly" class="hidden">
       <div class="row2" style="margin-bottom:10px;">
@@ -719,6 +726,7 @@
     balHak:'Кредиторы', balKarz:'Должники', weMustGive:'мы должны отдать', theyMustGive:'нам должны',
     balAll:'Все', balHakF:'Кредиторы', balKarzF:'Должники', noClients:'Клиентов нет', searchName:'Поиск по имени...',
     bsSum:'по сумме', bsDate:'по свежести', bsName:'по имени', bsDead:'спящие', balQuiet:'тихо, дн.',
+    endDay:'Остаток на конец дня', genHist:'Общая история', earnedDay:'Заработано за день',
     qbFull:'Полный отчёт', dataAt:'Данные на', updBtn:'Обновить', srvW:'сервер',
     archDrop:'Сбросить архивы', archDropped:'Сброшено архивов:',
     archHint:'Закрытые месяцы хранятся в телефоне и не перезапрашиваются. Сбросьте, если пересчитали прошлый месяц.',
@@ -823,6 +831,7 @@
     balHak:'Ҳақдорлар', balKarz:'Қарздорлар', weMustGive:'биз беришимиз керак', theyMustGive:'бизга бериши керак',
     balAll:'Ҳаммаси', balHakF:'Ҳақдор', balKarzF:'Қарздор', noClients:'Мижоз йўқ', searchName:'Исм бўйича қидириш...',
     bsSum:'сумма бўйича', bsDate:'янгилиги', bsName:'исм', bsDead:'ухлаётган', balQuiet:'жим, кун',
+    endDay:'Кун охирида қолдиқ', genHist:'Умумий тарих', earnedDay:'Кунлик фойда',
     qbFull:'Тўлиқ ҳисобот', dataAt:'Маълумот', updBtn:'Янгилаш', srvW:'сервер',
     archDrop:'Архивларни тозалаш', archDropped:'Тозаланди:',
     archHint:'Ёпилган ойлар телефонда сақланади ва қайта сўралмайди. Ўтган ой қайта ҳисобланган бўлса тозаланг.',
@@ -1124,8 +1133,8 @@
     SB_ON=!SB_ON;
     localStorage.setItem('kassa_src', SB_ON?'sb':'apps');
     sbBtnPaint();
-    BAL_TS=0; quietClear_(); _sbTs=0;   // сбросить кэш, перечитать из нового источника
-    if(typeof balLoad==='function') balLoad();
+    BAL_TS=0; OV_TS=0; quietClear_(); _sbTs=0; _sbLive=null; _sbReg=null;  // сбросить кэш
+    sbToggleReload_();                  // перечитать текущий экран из нового источника
   }
   function sbBtnPaint(){
     var b=document.getElementById('sbBtn'); if(!b) return;
@@ -1134,6 +1143,8 @@
     b.style.borderColor=SB_ON?'var(--plus)':'var(--muted)';
     b.style.color=SB_ON?'var(--plus)':'var(--muted)';
   }
+  function sbToggleReload_(){ var c=document.querySelector('.tab.sel'); var n=c?c.getAttribute('data-s'):'moscow';
+    if(n==='moscow')mOpen(); else if(n==='uzb')uOpen(); else if(n==='region')gOpen(); else if(n==='reports')repInit&&repInit(); }
   var SB_URL='https://bmnqmjuotpwwjejzefed.supabase.co';
   var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
   var _sbH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
@@ -1186,6 +1197,137 @@
     });
     var tp=0,tm=0; items.forEach(function(x){if(x.balance>0)tp+=x.balance;else if(x.balance<0)tm+=x.balance;});
     return {items:items,totalPlus:tp,totalMinus:Math.abs(tm),farq:Math.round(items.reduce(function(s,x){return s+x.balance;},0))};
+  }
+  // ТОЧНАЯ копия getOverview -> форма для ovRender
+  function sbComputeOverview(){
+    var ops=_sbLive,reg=_sbReg,regCost={},mbRub=0,mbUsd=0,clientBal={};
+    ops.forEach(function(r){
+      if(r.status==='отменён')return; var pl=(r.place||'').trim(),u=Number(r.usd||0),fr=_sbFactRub(r),pf=Number(r.profit||0);
+      if(pl){if(regCost[pl]===undefined)regCost[pl]=0;if(u>0)regCost[pl]+=fr+pf;else if(u<0)regCost[pl]+=pf-fr;}
+      if(pl==='Москва'){mbRub+=Number(r.rub||0);mbUsd+=u;}
+      var nm=(r.name||'').trim();if(nm&&nm!=='Остаток'&&nm!=='Обмен')clientBal[nm]=(clientBal[nm]||0)+Number(r.rub_itog||0);
+    });
+    var hakdor=0,karzdor=0;for(var cn in clientBal){var cb=clientBal[cn];if(cb>0)hakdor+=cb;else if(cb<0)karzdor+=cb;}karzdor=Math.abs(karzdor);
+    var mAvg=0;reg.forEach(function(rg){if((rg.region||'').trim()==='Москва')mAvg=Number(rg.avg||0);});
+    var mCost=(regCost['Москва']!==undefined)?regCost['Москва']:Math.round(mbUsd*mAvg),mTot=mbRub+mCost;
+    var regRub=0,profit=0,regions=[];
+    reg.forEach(function(rg){var rnm=(rg.region||'').trim();if(!rnm)return;var usd=Number(rg.usd||0),avg=Number(rg.avg||0),p=Number(rg.profit_total||0)+Number(rg.profit_start||0);
+      if(rnm!=='Москва'){var rub=(regCost[rnm]!==undefined)?regCost[rnm]:Math.round(usd*avg);if(usd===0&&rub!==0){p-=rub;rub=0;}regRub+=rub;regions.push({name:rnm,rub:rub,usd:usd,avg:avg,profit:p});}
+      profit+=p;});
+    var act=mTot+regRub+karzdor,liab=hakdor+profit,farq=act-liab;
+    return {moscow:{total:mTot,usd:mbUsd,avg:mAvg,rubCash:mbRub},regions:regions,
+      karzdor:karzdor,hakdor:hakdor,profitTotal:profit,activeTotal:act,liabTotal:liab,farq:farq,ok:true};
+  }
+  // farq из Apps Script — для сравнения в шапке (лёгкий запрос getOverview)
+  var _sbAppsFarq=null;
+  function sbAppsFarq(cb){
+    apiCall('getOverview',{},AUTH_TOKEN,true).then(function(r){
+      if(r&&r.ok){ _sbAppsFarq=Math.round(r.farq); } if(cb)cb();
+    }).catch(function(){ if(cb)cb(); });
+  }
+  // строки одного места, свежие сверху, без me_ (для показа) — из _sbLive
+  function sbPlaceRows(place){
+    return _sbLive.filter(function(r){return (r.place||'').trim()===place && r.status!=='отменён' && String(r.id||'').indexOf('me_')!==0;});
+  }
+  // строки места ВКЛЮЧАЯ me_ (для остатка на конец дня — несут базу)
+  function sbPlaceAll(place){
+    return _sbLive.filter(function(r){return (r.place||'').trim()===place && r.status!=='отменён';});
+  }
+  // накопительный остаток на конец каждого дня. Москва — ₽ (кол.rub), иначе $ (usd).
+  function sbEndBal(allRows,place){
+    var byDay={}; allRows.forEach(function(r){var d=(r.dt||'').slice(0,10);if(!byDay[d])byDay[d]=0;
+      byDay[d]+=(place==='Москва')?Number(r.rub||0):Number(r.usd||0);});
+    var dk=Object.keys(byDay).sort(),run=0,out={};
+    dk.forEach(function(d){run+=byDay[d];out[d]=run;});
+    return out;
+  }
+  function _sbDay(r){return (r.dt||'').slice(0,10);}
+  function _sbHHMM(r){return (r.dt||'').slice(11,16);}
+  var _WD=['якш','душ','сеш','чор','пай','жум','шан'];
+  // острова по дням из строк Supabase. rows свежие-сверху. place -> остаток на конец дня.
+  function sbFeedDays(rows, place, allRows){
+    var days={}; rows.forEach(function(r){var d=_sbDay(r);(days[d]=days[d]||[]).push(r);});
+    var keys=Object.keys(days).sort().reverse();
+    var tod=new Date().toISOString().slice(0,10);
+    var yd=new Date(Date.now()-864e5).toISOString().slice(0,10);
+    var endBal=(place&&allRows)?sbEndBal(allRows,place):null;
+    return keys.map(function(d){
+      var list=days[d], dd=new Date(d+'T12:00:00');
+      var lbl=(d===tod?'Бугун':d===yd?'Кеча':(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WD[dd.getDay()];
+      var h='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
+      h+=list.map(sbFeedRow).join('');
+      if(endBal&&endBal[d]!==undefined){
+        h+='<div style="font-size:11px;color:var(--gold);text-align:right;padding:3px 4px 8px;border-bottom:1px dashed var(--line);margin-bottom:4px;">'+t('endDay')+': '+fmt(endBal[d])+(place==='Москва'?' ₽':' $')+'</div>';
+      }
+      return h;
+    }).join('');
+  }
+  function sbFeedRow(r){
+    var usd=Number(r.usd||0), ri=Number(r.rub_itog||0), e=Number(r.rub||0);
+    var sum=usd?((usd>0?'+':'−')+cur(r.place)+fmt(Math.abs(usd))):((ri||e)<0?'−':'+')+fmt(Math.abs(ri||e))+' ₽';
+    var col=(usd||ri||e)<0?'minus':'plus';
+    var m=[_sbHHMM(r), actName(r.action)];
+    if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
+    if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
+    var st=(r.status||'').trim(); if(st&&st!=='актив'&&st!=='исполнено')m.push(st);
+    if(r.executor)m.push('✅ '+r.executor);
+    var nm=(r.name||'');
+    var tap=(nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'';
+    return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div></div>';
+  }
+  // ---- ОЙЛИК из Supabase (копия getMonthlyReport, текущий месяц — из live) ----
+  function sbComputeMonthly(place, monthKey){
+    var mStart=monthKey+'-01', mEnd=monthKey+'-31';
+    var opUsd=0,opBuyUsd=0,opBuyRub=0,opCash=0;
+    var buys={count:0,usd:0,rub:0,items:[]}, sells={count:0,usd:0,rub:0,items:[]};
+    var profit=0,opsCount=0,monthCash=0;
+    var src=_sbLive.filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
+    src.forEach(function(r){
+      var dk=_sbDay(r); if(!dk)return;
+      var usd=Number(r.usd||0), fr=_sbFactRub(r), e=Number(r.rub||0);
+      if(dk<mStart){ opUsd+=usd; opCash+=e; if(usd>0){opBuyUsd+=usd;opBuyRub+=fr;} }
+      else if(dk<=mEnd){
+        opsCount++; monthCash+=e; profit+=Number(r.profit||0);
+        var it={d:dk.slice(8,10)+'.'+dk.slice(5,7),action:(r.action||'').trim(),name:(r.name||'').trim(),usd:Math.abs(usd),rate:r.rate,rub:fr};
+        if(usd>0){buys.count++;buys.usd+=usd;buys.rub+=fr;buys.items.push(it);}
+        else if(usd<0){sells.count++;sells.usd+=Math.abs(usd);sells.rub+=fr;sells.items.push(it);}
+      }
+    });
+    var avgOp=opBuyUsd>0?opBuyRub/opBuyUsd:0;
+    var clBuyUsd=opBuyUsd+buys.usd, clBuyRub=opBuyRub+buys.rub;
+    var avgCl=clBuyUsd>0?clBuyRub/clBuyUsd:0;
+    var clUsd=opUsd+buys.usd-sells.usd;
+    buys.avg=buys.usd>0?Math.round(buys.rub/buys.usd*100)/100:0;
+    sells.avg=sells.usd>0?Math.round(sells.rub/sells.usd*100)/100:0;
+    var isM=(place==='Москва');
+    return {ok:true,month:monthKey,place:place,profit:profit,opsCount:opsCount,
+      turnoverUsd:buys.usd+sells.usd,
+      opening:{usd:opUsd,avg:Math.round(avgOp*100)/100,rub:Math.round(opUsd*avgOp),cash:isM?opCash:null},
+      closing:{usd:clUsd,avg:Math.round(avgCl*100)/100,rub:Math.round(clUsd*avgCl),cash:isM?(opCash+monthCash):null},
+      buys:buys,sells:sells};
+  }
+  // ---- ТАРИХ из Supabase (остаток по дням) ----
+  function sbComputeTarih(place, period){
+    var src=_sbLive.filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
+    var byDay={};
+    src.forEach(function(r){var d=_sbDay(r);if(!d)return;if(!byDay[d])byDay[d]={usd:0,cash:0,bu:0,br:0};
+      var u=Number(r.usd||0),e=Number(r.rub||0),fr=_sbFactRub(r);
+      byDay[d].usd+=u; byDay[d].cash+=e; if(u>0){byDay[d].bu+=u;byDay[d].br+=fr;}});
+    var keys=Object.keys(byDay).sort();
+    // период
+    var todayK=new Date().toISOString().slice(0,10);
+    var fromK='',toK=todayK;
+    if(period&&period.month){ fromK=period.month+'-01'; toK=period.month+'-31'; if(toK>todayK)toK=todayK; }
+    else { var days=Math.min(Math.max((period&&period.days)||10,1),62);
+      fromK=new Date(Date.now()-(days-1)*864e5).toISOString().slice(0,10); }
+    var run=0,cash=0,bu=0,br=0,items=[],isM=(place==='Москва');
+    keys.forEach(function(d){
+      var x=byDay[d]; run+=x.usd; cash+=x.cash; bu+=x.bu; br+=x.br;
+      if(d<fromK||d>toK) return;
+      items.push({d:d,usd:run,avg:bu>0?Math.round(br/bu*100)/100:0,cash:isM?cash:null,dUsd:x.usd,dCash:isM?x.cash:null});
+    });
+    items.reverse();
+    return {ok:true,place:place,items:items};
   }
   function logout(){
     localStorage.removeItem('kassa_token');
@@ -1650,6 +1792,19 @@
   // Лечит гонку: поздний ответ «Кеча» перетирал уже показанный «Бугун».
   var mGen=0;
   function mOpen(){
+    // v23: лента Москвы из Supabase — острова по дням, остаток на конец дня, вся история
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var ov=sbComputeOverview();
+        document.getElementById('mskRub').textContent=fmt(ov.moscow.rubCash)+' ₽';
+        document.getElementById('mskUsd').textContent='$ '+fmt(ov.moscow.usd);
+        var rows=sbPlaceRows('Москва'), all=sbPlaceAll('Москва');
+        var box=document.getElementById('mFeed');
+        box.innerHTML=rows.length?sbFeedDays(rows,'Москва',all):'<div class="loading">'+t('noOps')+'</div>';
+        quietSet_('moscow');
+      }).catch(function(){});
+      return;
+    }
     var c=cGet('moscow'); if(c) mApply(c);           // мгновенно из кэша, до всякой сети
     if(c && quietOk_('moscow')) return;              // проверяли только что — в сеть не идём
     var g=++mGen;
@@ -2028,6 +2183,29 @@
   var UZB=makeRegionEngine('u',function(){return 'Узбекистан';});
   function uPick(el,a){UZB.pick(el,a);} function uCalc(k){UZB.calc(k);} function uRubEdit(){UZB.rubEdit();}
   function uSubmit(){UZB.submit();} function uRefreshBalance(){UZB.refreshBalance();} function uRefreshFeed(){UZB.refreshFeed();} function uLoadReq(){UZB.loadReq();}
+  // v23: собрать экран региона из Supabase под формат uApply/gApplyCached
+  function sbRegionScreen(region){
+    var rg=null; _sbReg.forEach(function(x){if((x.region||'').trim()===region)rg=x;});
+    var usd=rg?Number(rg.usd||0):0, avg=rg?Number(rg.avg||0):0, profit=rg?(Number(rg.profit_total||0)+Number(rg.profit_start||0)):0;
+    var zay=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='заявка';});
+    var isp=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='исполнено';});
+    var pending=0; zay.forEach(function(r){pending+=Number(r.usd||0);});
+    function reqItem(r){return {id:r.id,action:(Number(r.usd||0)>0?'oldim':'berdim'),region:region,name:r.name,
+      usd:Number(r.usd||0),rub:Math.abs(Number(r.rub_itog||0)),rate:r.rate,note:r.note||'',operator:r.operator||'',
+      executor:r.executor||'',time:(r.dt||'').slice(8,10)+'.'+(r.dt||'').slice(5,7)+' '+(r.dt||'').slice(11,16)};}
+    return {ok:true,balance:{usd:usd,avg:avg,profit:profit},
+      summary:{onHand:usd,pending:pending,count:zay.length},
+      feed:_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()!=='отменён' && String(r.id||'').indexOf('me_')!==0;}),
+      requests:{active:zay.map(reqItem),done:isp.slice(0,15).map(reqItem)},
+      region:region};
+  }
+  // рендер ленты региона островами по дням в заданный контейнер
+  function sbRegionFeedInto(boxId,region){
+    var box=document.getElementById(boxId); if(!box) return;
+    var rows=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()!=='отменён' && String(r.id||'').indexOf('me_')!==0;});
+    var all=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()!=='отменён';});
+    box.innerHTML=rows.length?sbFeedDays(rows,region,all):'<div class="loading">'+t('noOps')+'</div>';
+  }
   function uApply(res){
       var b=res.balance||{};
       UZB.setAvg(b.avg||0);
@@ -2043,6 +2221,15 @@
   }
   function uOpen(){
     updateExecAllVisibility();
+    // v23: Узбекистан из Supabase — баланс, заявки, лента островами по дням
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var d=sbRegionScreen('Узбекистан'); uApply(d);
+        sbRegionFeedInto('uFeed','Узбекистан');       // острова по дням поверх
+        quietSet_('uzb');
+      }).catch(function(){});
+      return;
+    }
     var c=cGet('uzb'); if(c) uApply(c);
     if(c && quietOk_('uzb')) return;                 // проверяли только что — в сеть не идём
     var g=UZB.gen();
@@ -2079,6 +2266,19 @@
   }
   function gOpen(init){
     if(!init && !gCurRegion) return;
+    // v23: регионы из Supabase
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var list=_sbReg.map(function(x){return (x.region||'').trim();})
+          .filter(function(n){return n && n!=='Москва' && n!=='Узбекистан';});
+        if(!gCurRegion && list.length) gCurRegion=list[0];
+        var d=sbRegionScreen(gCurRegion); d.regions=['Москва'].concat(list).concat(['Узбекистан']);
+        gApplyCached(d);
+        sbRegionFeedInto('gFeed',gCurRegion);         // острова по дням поверх
+        quietSet_('reg_'+gCurRegion);
+      }).catch(function(){});
+      return;
+    }
     var c=gCurRegion?cGet('reg_'+gCurRegion):null; if(c) gApplyCached(c);
     if(c && quietOk_('reg_'+gCurRegion)) return;     // проверяли только что — в сеть не идём
     var g=REG.gen();
@@ -2572,7 +2772,7 @@
   function repInit(){ repTab('balance'); }
   function repTab(name){
     if(USER_ROLE==='report'&&name==='daily') return;   // Кунлик закрыт для роли report
-    ['balance','daily','overview','monthly','history'].forEach(function(t){
+    ['balance','daily','overview','genhist','monthly','history'].forEach(function(t){
       var tab=document.getElementById('rtab-'+t), pane=document.getElementById('repPane-'+t);
       if(tab) tab.classList.toggle('sel', t===name);
       if(pane) pane.classList.toggle('hidden', t!==name);
@@ -2580,13 +2780,76 @@
     if(name==='balance'){ bgDrop('bal'); balLoad(); }
     if(name==='daily') dlLoad();
     if(name==='overview'){ bgDrop('ovw'); ovLoad(); }
+    if(name==='genhist') ghInit();
     if(name==='monthly'){ bgDrop('mo'+(document.getElementById('moMonth').value||'')); moInit(); }
     if(name==='history') thInit();
+  }
+  // v23: ОБЩАЯ ИСТОРИЯ — все взятия/передачи по всем регионам, острова по дням,
+  // прибыль за день. Для admin/operator2/report. Только из Supabase.
+  var GH_INIT=false;
+  function ghInit(){
+    if(!GH_INIT){
+      GH_INIT=true;
+      sbFetchBase().then(function(){
+        var places={}; _sbLive.forEach(function(r){var p=(r.place||'').trim();if(p)places[p]=1;});
+        var list=['(все регионы)'].concat(Object.keys(places).sort());
+        document.getElementById('ghPlace').innerHTML=list.map(function(p){return '<option>'+esc(p)+'</option>';}).join('');
+        ghLoad();
+      });
+    } else ghLoad();
+  }
+  function ghLoad(){
+    var box=document.getElementById('ghBox');
+    if(!SB_ON){ box.innerHTML='<div class="empty">Общая история доступна из Supabase</div>'; return; }
+    sbFetchBase().then(function(){
+      var place=document.getElementById('ghPlace').value;
+      var rows=_sbLive.filter(function(r){
+        if((r.status||'').trim()==='отменён') return false;
+        if(String(r.id||'').indexOf('me_')===0) return false;
+        if(place && place!=='(все регионы)' && (r.place||'').trim()!==place) return false;
+        return true;
+      });
+      // острова по дням + прибыль за день
+      var days={}; rows.forEach(function(r){var d=(r.dt||'').slice(0,10);(days[d]=days[d]||[]).push(r);});
+      var keys=Object.keys(days).sort().reverse();
+      var tod=new Date().toISOString().slice(0,10), yd=new Date(Date.now()-864e5).toISOString().slice(0,10);
+      var h=keys.length?'':'<div class="empty">'+t('noOps2')+'</div>';
+      keys.forEach(function(d){
+        var list=days[d], dd=new Date(d+'T12:00:00');
+        var lbl=(d===tod?'Бугун':d===yd?'Кеча':(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WD[dd.getDay()];
+        var prof=0; list.forEach(function(r){prof+=Number(r.profit||0);});
+        h+='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
+        h+=list.map(function(r){
+          var usd=Number(r.usd||0),col=usd<0?'minus':'plus';
+          var sum=(usd>0?'+':'−')+cur(r.place)+fmt(Math.abs(usd));
+          var m=[(r.dt||'').slice(11,16),(r.place||''),actName(r.action)];
+          if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
+          if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
+          if(r.executor)m.push('✅ '+r.executor);
+          var tap=(r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'';
+          return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div></div>';
+        }).join('');
+        h+='<div style="font-size:11px;color:var(--gold);text-align:right;padding:4px 4px 8px;border-bottom:1px dashed var(--line);margin-bottom:6px;">'+t('earnedDay')+': '+fmt(prof)+' ₽</div>';
+      });
+      box.innerHTML=h;
+    }).catch(function(){ box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
   function ovLoad(){
     if(OV_DATA) ovRender(OV_DATA);   // мгновенно из памяти/локального кэша
     else document.getElementById('ovBox').innerHTML='<div class="loading">…</div>';
     if(OV_DATA && quietOk_('ovw')) return;            // проверяли только что — сеть не нужна
+
+    // v23: общее состояние из Supabase
+    if(SB_ON){
+      sbFetchBase().then(function(){
+        var d=sbComputeOverview();
+        OV_DATA=d; OV_TS=Date.now(); cPut('ovw',d); ovRender(d);
+        sbGuard(Math.round(d.farq));
+        quietSet_('ovw');
+      }).catch(function(){ if(!OV_DATA) document.getElementById('ovBox').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+
     apiCall('getOverview',{fresh:_forceFresh?1:0,rev:revOf_(OV_DATA)},AUTH_TOKEN,!!OV_DATA).then(function(res){
       if(!res||!res.ok){ if(!OV_DATA) document.getElementById('ovBox').innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       quietSet_('ovw');
@@ -2659,28 +2922,34 @@
       balRender();
     }).catch(function(){ if(first) document.getElementById('balList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
-  // v23: кнопка переключения источника + сторож farq. Видит только admin.
+  // v23: панель наверху — переключатель источника + два farq (Supabase и Apps
+  // Script) для сравнения. Видит только admin. Строка тонкая, не мешает.
   function sbEnsureUI(){
     if(USER_ROLE!=='admin') return;
-    if(!document.getElementById('sbBtn')){
-      var b=document.createElement('div'); b.id='sbBtn';
-      b.style.cssText='position:fixed;right:8px;bottom:56px;z-index:99;border:1px solid;border-radius:20px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer';
-      b.onclick=sbToggle;
-      document.body.appendChild(b); sbBtnPaint();
-    }
+    if(document.getElementById('sbBar')) return;
+    var bar=document.createElement('div'); bar.id='sbBar';
+    bar.style.cssText='position:sticky;top:0;z-index:99;display:flex;align-items:center;gap:8px;background:var(--card);border-bottom:1px solid var(--line);padding:5px 10px;font-size:11px;font-weight:700';
+    bar.innerHTML='<div id="sbBtn" style="border:1px solid;border-radius:14px;padding:4px 11px;cursor:pointer"></div>'+
+      '<div id="sbFarqSb" style="color:var(--muted)">farq —</div>'+
+      '<div id="sbFarqApps" style="margin-left:auto;color:var(--muted)">Apps —</div>';
+    document.body.insertBefore(bar, document.body.firstChild);
+    document.getElementById('sbBtn').onclick=sbToggle;
+    sbBtnPaint();
   }
   function sbGuard(farq){
     if(USER_ROLE!=='admin') return;
     sbEnsureUI();
-    var el=document.getElementById('sbGuard');
-    if(!el){
-      el=document.createElement('div'); el.id='sbGuard';
-      el.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:700;text-align:center';
-      document.body.appendChild(el);
-    }
-    el.style.display='block';
-    if(Math.abs(farq)<1){ el.style.background='rgba(61,220,132,.15)'; el.style.border='1px solid var(--plus)'; el.style.color='var(--plus)'; el.textContent='✓ Supabase · farq 0'; clearTimeout(el._t); el._t=setTimeout(function(){el.style.display='none';},3000); }
-    else{ el.style.background='rgba(255,107,107,.15)'; el.style.border='1px solid var(--minus)'; el.style.color='var(--minus)'; el.textContent='⚠ Supabase farq '+fmt(farq)+' ₽ — проверь'; }
+    var el=document.getElementById('sbFarqSb'); if(!el) return;
+    if(Math.abs(farq)<1){ el.style.color='var(--plus)'; el.textContent='✓ SB farq 0'; }
+    else{ el.style.color='var(--minus)'; el.textContent='⚠ SB farq '+fmt(farq); }
+    // сравнить с Apps Script (лёгкий getOverview, раз в загрузку)
+    sbAppsFarq(function(){
+      var ap=document.getElementById('sbFarqApps'); if(!ap) return;
+      if(_sbAppsFarq===null){ ap.textContent='Apps —'; return; }
+      var same=(Math.abs(_sbAppsFarq-farq)<1);
+      ap.style.color=same?'var(--muted)':'var(--minus)';
+      ap.textContent=(same?'= Apps '+ _sbAppsFarq:'≠ Apps '+_sbAppsFarq);
+    });
   }
   function balFilter(f){
     balCurFilter=f;
@@ -3014,6 +3283,18 @@
     if(hit) qbPaint_(hit.balance||0, hit.count||0, hit.last||'');
     else { document.getElementById('qbSum').textContent='…';
            document.getElementById('qbMeta').textContent=''; }
+    // v23: карточка из Supabase — остаток и время, на какое он верен
+    if(SB_ON){
+      sbGet('operations?name=eq.'+encodeURIComponent(name)+'&select=rub_itog,dt,id,status&limit=3000').then(function(rows){
+        var bal=0,cnt=0,last='';
+        rows.forEach(function(r){ if(r.status==='отменён')return; bal+=Number(r.rub_itog||0);
+          if(String(r.id||'').indexOf('me_')===0)return; cnt++; var d=(r.dt||'').slice(0,10); if(d>last)last=d; });
+        var lastTxt=last?(last.slice(8,10)+'.'+last.slice(5,7)):'';
+        qbPaint_(bal,cnt,lastTxt);
+        var m=document.getElementById('qbMeta'); if(m) m.textContent+=' · '+new Date().toTimeString().slice(0,5);
+      }).catch(function(){});
+      return;
+    }
     apiCall('getClientQuickBalance',{name:name},AUTH_TOKEN,!!hit).then(function(r){
       if(!r||!r.ok){ if(!hit){ document.getElementById('qbSum').textContent='—';
         document.getElementById('qbMeta').textContent=(r&&r.error)||t('err'); } return; }
@@ -3028,16 +3309,16 @@
     // «Операции» — полторы тысячи строк ради экрана, который открывают на
     // секунду. Текущий месяц начался после границы закрытия, поэтому архивы
     // не читаются вовсе. Текущий остаток от периода не зависит.
-    clCurName=name; clPeriodVal='month'; clReportText=''; clReportPhone='';
+    clCurName=name; clPeriodVal='all'; clReportText=''; clReportPhone='';   // v23: сперва «Ҳаммаси»
     document.getElementById('clName').textContent=name;
     var _clP=''; for(var _pi=0;_pi<DB.length;_pi++){ if(DB[_pi].name===name){ _clP=String(DB[_pi].phone||'').replace(/\D/g,''); break; } }
     document.getElementById('clPhone').textContent=_clP?phFmt(_clP):'';
     document.getElementById('clReportResult').innerHTML='';
     document.getElementById('clKeyBox').innerHTML='';
     document.getElementById('clRangeBox').classList.add('hidden');
-    document.getElementById('clPerMonth').classList.add('sel');
+    document.getElementById('clPerAll').classList.add('sel');
+    document.getElementById('clPerMonth').classList.remove('sel');
     document.getElementById('clPerRange').classList.remove('sel');
-    document.getElementById('clPerAll').classList.remove('sel');
     ['moscow','uzb','region','req','transfer','admin','reports'].forEach(function(s){var d=document.getElementById('scr-'+s); if(d)d.classList.add('hidden');});
     document.getElementById('scr-client').classList.remove('hidden');
     clLoadOps();
@@ -3114,6 +3395,40 @@
       box.innerHTML='<div class="loading">…</div>';
     }
 
+    // v23: отчёт клиента из Supabase (архивы зеркалированы — вся история есть)
+    if(SB_ON){
+      sbGet('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id&order=dt.asc&limit=3000').then(function(rows){
+        if(g!==clGen || name!==clCurName) return;
+        // отправная точка: последний me_start_
+        var startDt='',start=0;
+        rows.forEach(function(r){ if(String(r.id||'').indexOf('me_start_')===0 && (r.dt||'')>startDt){ startDt=r.dt; start=Number(r.rub_itog||0); } });
+        var real=rows.filter(function(r){ return String(r.id||'').indexOf('me_')!==0 && r.status!=='отменён' && (r.dt||'')>startDt; });
+        var closing=start; real.forEach(function(r){ closing+=Number(r.rub_itog||0); });
+        // фильтр периода для показа
+        var shown=real;
+        if(clPeriodVal==='month'){ var mk=CUR_MONTH_(); shown=real.filter(function(r){return (r.dt||'').slice(0,7)===mk;}); }
+        else if(clPeriodVal==='range'){ shown=real.filter(function(r){var dd=(r.dt||'').slice(0,10); return (!d.from||dd>=d.from)&&(!d.to||dd<=d.to);}); }
+        // входящий остаток = старт + сумма сделок ДО первой показанной.
+        // real отсортирован по возрастанию; берём границу — dt первой показанной.
+        var firstDt=(shown.length?shown[0].dt:'');
+        var opening=start;
+        if(clPeriodVal!=='all' && firstDt){
+          real.forEach(function(r){ if((r.dt||'')<firstDt) opening+=Number(r.rub_itog||0); });
+        }
+        clOpening=opening;
+        clReportText=''; clReportPhone='';
+        clClosing=closing;
+        clRenderBalance(closing, shown.length);
+        clRenderOps(shown.map(function(r){var s=(r.dt||'');
+          return { datetime:s.slice(8,10)+'.'+s.slice(5,7)+' '+s.slice(11,16),
+            action:(r.action||'').trim(), region:(r.place||'').trim(),
+            usd:Number(r.usd||0), rate:r.rate, rub:Math.abs(Number(r.rub_itog||0)), h:Number(r.rub_itog||0),
+            _dt:s };
+        }));
+      }).catch(function(){ if(g===clGen && !cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+
     apiCall('getClientReport',{name:name,dateFrom:d.from,dateTo:d.to,lang:'uz',rev:revOf_(cached)},AUTH_TOKEN,!!cached).then(function(res){
       if(g!==clGen || name!==clCurName) return;      // ответ по другому клиенту/периоду — мимо
       if(!res||!res.ok){ if(!cached) box.innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
@@ -3138,8 +3453,12 @@
     // нарастающий остаток: opening + сумма H по порядку (ops идут по возрастанию даты)
     var run=clOpening, runBal=[];
     for(var ri=0;ri<ops.length;ri++){ run+=Number(ops[ri].h||0); runBal.push(run); }
+    // v23: показываем СВЕЖИЕ СВЕРХУ. Остаток после сделки runBal[idx] у каждой
+    // строки СВОЙ и верный — считался по возрастанию, а порядок показа обратный.
+    var order=[]; for(var oi=ops.length-1;oi>=0;oi--) order.push(oi);
     var h='';
-    ops.forEach(function(it,idx){
+    order.forEach(function(idx){
+      var it=ops[idx];
       var title, amtMain, amtSub='', cls;
       if(it.action==='Перевод'){
         cls=it.h>=0?'plus':'minus';
@@ -3541,6 +3860,16 @@
     if(c){ MO_DATA=c; moRender(); } else box.innerHTML='<div class="loading">…</div>';
     // закрытый месяц лежит в архиве и не меняется НИКОГДА — в сеть не ходим вовсе
     if(c && c.source==='archive' && !_forceFresh) return;
+
+    // v23: ТЕКУЩИЙ месяц — из Supabase. Закрытый — с Apps Script (кэш навсегда).
+    var curM=new Date().toISOString().slice(0,7);
+    if(SB_ON && month===curM){
+      sbFetchBase().then(function(){
+        MO_DATA=sbComputeMonthly(place,month); cPut(ck,MO_DATA); moRender();
+      }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+
     apiCall('getMonthlyReport',{month:month,place:place,rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(r){
       if(!r||!r.ok){ if(!c) box.innerHTML='<div class="empty">'+((r&&r.error)||t('err'))+'</div>'; return; }
       if(!revNew_(r)) return;
@@ -3613,6 +3942,19 @@
     // Так уже сделано в moLoad, а тут не было: Тарих спрашивал сервер даже про
     // июнь. Признак закрытого — период вида m2026-07 раньше текущего месяца.
     if(c && !_forceFresh && pv.charAt(0)==='m' && pv.slice(1)<CUR_MONTH_()) return;
+
+    // v23: Supabase — если диапазон целиком в текущем месяце (данные есть в live).
+    // Дни, уходящие в архив, и закрытые месяцы — с Apps Script (там есть архивы).
+    var curMStart=CUR_MONTH_()+'-01';
+    var fromK = (pv.charAt(0)==='m') ? (pv.slice(1)+'-01')
+              : new Date(Date.now()-((parseInt(pv.slice(1),10)||10)-1)*864e5).toISOString().slice(0,10);
+    if(SB_ON && fromK>=curMStart){
+      sbFetchBase().then(function(){
+        var r=sbComputeTarih(place,period); cPut(ck,r); thRender(r);
+      }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+
     apiCall('getBalanceHistory',{place:place,period:period,rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(r){
       if(!r||!r.ok){ if(!c) box.innerHTML='<div class="empty">'+((r&&r.error)||t('err'))+'</div>'; return; }
       if(!revNew_(r)) return;

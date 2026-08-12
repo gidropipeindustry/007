@@ -1157,6 +1157,23 @@
   var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
   var _sbH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
   function sbGet(path){ return fetch(SB_URL+'/rest/v1/'+path,{headers:_sbH}).then(function(r){return r.json();}); }
+  // v30: Supabase (PostgREST) отдаёт МАКСИМУМ 1000 строк за запрос, что бы ни
+  // стояло в limit. Раньше limit=3000/20000/100000 молча резались до 1000 —
+  // отчёты считались по куску данных. Качаем страницами по 1000, пока страница
+  // приходит полной. В path обязателен order=… — без него страницы могут
+  // перекрываться. Свой limit в path не передавать.
+  function sbGetAll(path){
+    var PAGE=1000, out=[];
+    function page(off){
+      return sbGet(path+'&limit='+PAGE+'&offset='+off).then(function(rows){
+        if(!rows||!rows.length||!Array.isArray(rows)) return out;
+        out=out.concat(rows);
+        if(rows.length<PAGE||out.length>=100000) return out;
+        return page(off+PAGE);
+      });
+    }
+    return page(0);
+  }
   // v28: дата/время из Supabase приходят в UTC ISO. День и время СЧИТАЕМ ПО МСК,
   // иначе операции 00:00–03:00 МСК уезжают на вчерашний день и «остаток на конец
   // дня» плывёт на 3 часа. (В clDates это уже было сделано, тут — для лент.)
@@ -1170,7 +1187,7 @@
   function sbFetchBase(){
     if(_sbLive&&_sbReg&&Date.now()-_sbTs<20000) return Promise.resolve();
     return Promise.all([
-      sbGet('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.desc&limit=20000'),
+      sbGetAll('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.desc,id.asc'),
       sbGet('regions?select=*')
     ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); _sbMergePending(); });
   }
@@ -1179,7 +1196,7 @@
   var _sbMeta=null,_sbMetaTs=0;
   function sbFetchMeta(){
     if(_sbMeta&&Date.now()-_sbMetaTs<300000) return Promise.resolve();
-    return sbGet('operations?select=name,dt,id,status&limit=100000').then(function(rows){
+    return sbGetAll('operations?select=name,dt,id,status&order=id.asc').then(function(rows){
       var m={};
       rows.forEach(function(r){
         var nm=(r.name||'').trim();
@@ -3493,7 +3510,7 @@
            document.getElementById('qbMeta').textContent=''; }
     // v23: карточка из Supabase — остаток и время, на какое он верен
     if(SB_ON){
-      sbGet('operations?name=eq.'+encodeURIComponent(name)+'&select=rub_itog,dt,id,status&limit=3000').then(function(rows){
+      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=rub_itog,dt,id,status&order=id.asc').then(function(rows){
         var bal=0,cnt=0,last='';
         rows.forEach(function(r){ if(r.status==='отменён')return;
           // v28: строки me_ ИСКЛЮЧАЕМ из баланса тоже (раньше суммировались →
@@ -3608,7 +3625,7 @@
 
     // v23: отчёт клиента из Supabase (архивы зеркалированы — вся история есть)
     if(SB_ON){
-      sbGet('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id&order=dt.asc&limit=3000').then(function(rows){
+      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id&order=dt.asc,id.asc').then(function(rows){
         if(g!==clGen || name!==clCurName) return;
         // v25: строки закрытия me_ ИГНОРИРУЕМ полностью — это снимок тех же
         // операций, а не отдельная сделка. Баланс = сумма ВСЕХ реальных
@@ -3966,7 +3983,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 29;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 30;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

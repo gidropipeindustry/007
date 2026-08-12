@@ -11,7 +11,7 @@
 //  kassa-v4: activate снесёт старые версии на всех устройствах.
 // ============================================================
 
-var CACHE = 'kassa-v4';
+var CACHE = 'kassa-v5';
 var SHELL = [
   './',
   './index.html',
@@ -53,6 +53,13 @@ self.addEventListener('fetch', function(e){
   if(url.indexOf('script.google.com') !== -1 || url.indexOf('script.googleusercontent.com') !== -1){
     return;
   }
+  // v30 (kassa-v5): Supabase — ВСЕГДА сеть. Раньше эти запросы проваливались в
+  // ветку «статика: сначала кэш» — первый ответ кэшировался НАВСЕГДА, и телефон
+  // показывал замороженный снимок данных, в сеть даже не ходя.
+  if(url.indexOf('supabase.co') !== -1){ return; }
+  // version.json — всегда сеть: он и так с ?t=..., но каждый такой URL уникален
+  // и складывался в кэш новой записью — кэш пух без пользы.
+  if(url.indexOf('version.json') !== -1){ return; }
   if(e.request.method !== 'GET'){ return; }
 
   // ПОРТАЛ КЛИЕНТА: client.html — всегда из сети, мимо кэша.

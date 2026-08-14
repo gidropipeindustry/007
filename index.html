@@ -900,6 +900,10 @@
   }
   // один сетевой вызов, без повторов
   function apiOnce_(action,args,token){
+    // v31: боевые действия записи -> прямо в Supabase (Postgres), если включён флаг.
+    // Всё остальное (чтение) идёт как раньше. Флаг по умолчанию выключен.
+    if(typeof WRITE_TO_SB!=='undefined' && WRITE_TO_SB &&
+       typeof SB_WRITE_MAP!=='undefined' && SB_WRITE_MAP[action]) return sbRpcWrite_(action,args,token);
     return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:action,token:token||'',args:args||{}})}).then(function(r){return r.json();});
   }
@@ -1134,7 +1138,10 @@
   // напрямую из Apps Script — там нет отставания зеркала и «ожидающих строк»,
   // ничего не пропадает, дата задним числом верная. Читающие экраны (отчёты,
   // балансы, обзор, общая история) остаются на Supabase — быстро.
-  var WRITE_FROM_APPS = true;
+  // v31: флаг записи в Supabase. localStorage kassa_wsb='1' -> телефон пишет в Postgres.
+  var WRITE_TO_SB = (localStorage.getItem('kassa_wsb')==='1');
+  // экраны ввода читают из Supabase, когда пишем в Supabase; иначе из Apps Script (как v29)
+  var WRITE_FROM_APPS = !WRITE_TO_SB;
   function _sbRead(){ return SB_ON; }            // читающие экраны
   function _sbWriteScr(){ return SB_ON && !WRITE_FROM_APPS; }  // экраны ввода
   function sbToggle(){
@@ -1156,6 +1163,23 @@
   var SB_URL='https://bmnqmjuotpwwjejzefed.supabase.co';
   var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
   var _sbH={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+  // v31: карта боевых RPC записи (телефон -> Postgres напрямую, с токеном оператора)
+  var SB_WRITE_MAP={
+    saveMoscow:        {fn:'p_save_moscow',      body:function(a,t){return {payload:a.payload,token:t};}},
+    saveRegionRequest: {fn:'p_save_region',      body:function(a,t){return {payload:a.payload,token:t};}},
+    saveTransfer:      {fn:'p_save_transfer',    body:function(a,t){return {payload:a.payload,token:t};}},
+    saveStartBalance:  {fn:'p_save_start',       body:function(a,t){return {payload:a.payload,token:t};}},
+    executeRequest:    {fn:'p_execute_request',  body:function(a,t){return {p_opid:a.opId,token:t};}},
+    cancelOperation:   {fn:'p_cancel_operation', body:function(a,t){return {p_opid:a.opId,p_force:(a.force!==undefined?a.force:true),token:t};}}
+  };
+  function sbRpcWrite_(action,args,token){
+    var m=SB_WRITE_MAP[action];
+    return fetch(SB_URL+'/rest/v1/rpc/'+m.fn,{method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify(m.body(args,token))})
+      .then(function(r){return r.json();})
+      .then(function(j){ if(j&&j.ok===undefined&&(j.message||j.code)) return {ok:false,error:(j.message||'ошибка RPC')}; return j; });
+  }
   function sbGet(path){ return fetch(SB_URL+'/rest/v1/'+path,{headers:_sbH}).then(function(r){return r.json();}); }
   // v30: Supabase (PostgREST) отдаёт МАКСИМУМ 1000 строк за запрос, что бы ни
   // стояло в limit. Раньше limit=3000/20000/100000 молча резались до 1000 —
@@ -3983,7 +4007,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 30;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 31;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

@@ -657,6 +657,8 @@
   <div class="btns"><button class="no" id="curCancel" data-i18n="no" style="flex:1;">Йўқ</button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="refresh-fab" onclick="appReload()" title="Янгилаш">⟳</div>
+<!-- v32: библиотека Supabase для реалтайма (вебсокет). Не загрузится — работает автоопрос. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   /* ===== КОНФИГ + ХЕЛПЕР apiCall ===== */
 
@@ -1138,8 +1140,10 @@
   // напрямую из Apps Script — там нет отставания зеркала и «ожидающих строк»,
   // ничего не пропадает, дата задним числом верная. Читающие экраны (отчёты,
   // балансы, обзор, общая история) остаются на Supabase — быстро.
-  // v31: флаг записи в Supabase. localStorage kassa_wsb='1' -> телефон пишет в Postgres.
-  var WRITE_TO_SB = (localStorage.getItem('kassa_wsb')==='1');
+  // v33: ЦЕНТРАЛЬНЫЙ режим записи. Флаг живёт в базе (app_config.write_mode);
+  // админ меняет из панели, ВСЕ телефоны читают его и авто-переключаются.
+  // Локальный кэш kassa_wmode — для мгновенного старта до ответа сети.
+  var WRITE_TO_SB = (localStorage.getItem('kassa_wmode')==='sb');
   // экраны ввода читают из Supabase, когда пишем в Supabase; иначе из Apps Script (как v29)
   var WRITE_FROM_APPS = !WRITE_TO_SB;
   function _sbRead(){ return SB_ON; }            // читающие экраны
@@ -1170,7 +1174,9 @@
     saveTransfer:      {fn:'p_save_transfer',    body:function(a,t){return {payload:a.payload,token:t};}},
     saveStartBalance:  {fn:'p_save_start',       body:function(a,t){return {payload:a.payload,token:t};}},
     executeRequest:    {fn:'p_execute_request',  body:function(a,t){return {p_opid:a.opId,token:t};}},
-    cancelOperation:   {fn:'p_cancel_operation', body:function(a,t){return {p_opid:a.opId,p_force:(a.force!==undefined?a.force:true),token:t};}}
+    cancelOperation:   {fn:'p_cancel_operation', body:function(a,t){return {p_opid:a.opId,p_force:(a.force!==undefined?a.force:true),token:t};}},
+    editOperation:     {fn:'p_edit_operation',   body:function(a,t){return {p_opid:a.opId,fields:a.fields,token:t};}},
+    changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,token:t};}}
   };
   function sbRpcWrite_(action,args,token){
     var m=SB_WRITE_MAP[action];
@@ -1179,6 +1185,21 @@
       body:JSON.stringify(m.body(args,token))})
       .then(function(r){return r.json();})
       .then(function(j){ if(j&&j.ok===undefined&&(j.message||j.code)) return {ok:false,error:(j.message||'ошибка RPC')}; return j; });
+  }
+  // v33: прочитать центральный режим записи из базы. Если отличается от кэша —
+  // обновить кэш и перезагрузить страницу (телефон переключится сам, без действий
+  // оператора). Зовётся при загрузке и в автоопросе.
+  function _syncWriteMode(){
+    try{
+      fetch(SB_URL+'/rest/v1/rpc/p_get_config',{method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json();})
+      .then(function(c){
+        var m=(c&&c.write_mode==='sb')?'sb':'apps';
+        var cur=localStorage.getItem('kassa_wmode')||'apps';
+        if(m!==cur){ localStorage.setItem('kassa_wmode',m); location.reload(); }
+      }).catch(function(){});
+    }catch(e){}
   }
   function sbGet(path){ return fetch(SB_URL+'/rest/v1/'+path,{headers:_sbH}).then(function(r){return r.json();}); }
   // v30: Supabase (PostgREST) отдаёт МАКСИМУМ 1000 строк за запрос, что бы ни
@@ -2333,7 +2354,7 @@
     return {ok:true,region:region,balance:{usd:usd,avg:avg,profit:profit},
       summary:{onHand:usd,pending:pending,count:zay.length},
       feed:_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()!=='отменён' && String(r.id||'').indexOf('me_')!==0;}),
-      requests:{active:zay.map(reqItem),done:isp.slice(0,15).map(reqItem)},
+      requests:{active:zay.map(reqItem),done:isp.slice(0,500).map(reqItem)},
       region:region};
   }
   // рендер ленты региона островами по дням в заданный контейнер
@@ -4007,7 +4028,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 31;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 32;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4337,12 +4358,14 @@
   applyI18n();
   buildTabs();
   sbEnsureUI();   // v23: кнопка «источник данных» — только admin
+  _syncWriteMode();   // v33: сверить центральный режим записи (админ мог переключить)
 
   // v26: АВТООПРОС — смотрящий видит чужие записи без нажатий. Раз в 15 сек,
   // только если экран открыт и это Supabase-экран. Лёгкий запрос (~300 мс).
   setInterval(function(){
-    if(!SB_ON) return;
     if(document.visibilityState!=='visible') return;
+    _syncWriteMode();   // v33: раз в 15 сек ловим смену центрального режима (флип/откат админом)
+    if(!SB_ON) return;
     if(_net) return;                                  // идёт запрос — не мешаем
     var cur=document.querySelector('.tab.sel'); var n=cur?cur.getAttribute('data-s'):null;
     // v29: экраны ввода (Москва/Регион/Узб) читают из Apps Script — их автополлом
@@ -4353,7 +4376,27 @@
       if(n==='moscow') mOpen(); else if(n==='uzb') uOpen(); else if(n==='region') gOpen();
     }
     if(n==='reports'){ var sub=document.querySelector('.sub-tab.sel'); var sn=sub?sub.id.replace('rtab-',''):''; if(sn==='balance')balLoad(); else if(sn==='overview')ovLoad(); else if(sn==='genhist')ghLoad(); }
-  }, 15000);
+  }, 15000);   // запасной опрос (реалтайм ниже даёт мгновенно; опрос — страховка)
+
+  // v32: РЕАЛТАЙМ — чужие записи видны мгновенно (вебсокет шлёт только изменение).
+  // Если библиотека/сокет не поднялся — работает автоопрос выше (страховка).
+  function _rtRefresh(){
+    if(document.visibilityState!=='visible') return;
+    _sbTs=0;
+    var cur=document.querySelector('.tab.sel'); var n=cur?cur.getAttribute('data-s'):null;
+    if(n==='moscow') mOpen(); else if(n==='uzb') uOpen(); else if(n==='region') gOpen();
+    else if(n==='reports'){ var sub=document.querySelector('.sub-tab.sel'); var sn=sub?sub.id.replace('rtab-',''):'';
+      if(sn==='balance')balLoad(); else if(sn==='overview')ovLoad(); else if(sn==='genhist')ghLoad(); }
+  }
+  (function initRealtime(){
+    try{
+      if(!window.supabase || !window.supabase.createClient) return;   // библиотека не загрузилась — ок, есть опрос
+      var _rt=window.supabase.createClient(SB_URL, SB_KEY);
+      _rt.channel('ops-live')
+        .on('postgres_changes', {event:'*', schema:'public', table:'operations'}, function(){ _rtRefresh(); })
+        .subscribe();
+    }catch(e){}
+  })();
 
   // v25: при чтении из Supabase снимок Apps Script НЕ нужен — он сканировал
   // весь лист и держал заход 9 секунд. Экраны сами тянут из Supabase быстро.

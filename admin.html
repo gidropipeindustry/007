@@ -1,0 +1,122 @@
+<!DOCTYPE html><html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Касса 007 · Доступ операторов</title>
+<style>
+:root{--bg:#0f1115;--card:#1a1d24;--line:#2a2e38;--txt:#e7e9ee;--mut:#8b919c;--plus:#3ddc84;--minus:#ff6b6b;--acc:#4a9eff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;padding:12px;max-width:560px;margin:auto}
+h2{font-size:17px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--mut);margin:6px 0 2px}
+input,select{width:100%;padding:9px;background:#12151b;border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:15px}
+button{width:100%;padding:11px;border:0;border-radius:9px;background:var(--acc);color:#fff;font-weight:600;font-size:15px;margin-top:10px;cursor:pointer}
+button.sec{background:#333844}button.warn{background:#5a2a2a}
+.u{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #222}
+.u .nm{font-weight:600}.u .meta{font-size:12px;color:var(--mut)}
+.pill{font-size:11px;padding:2px 7px;border-radius:20px}.on{background:rgba(61,220,132,.15);color:var(--plus)}.off{background:rgba(255,107,107,.15);color:var(--minus)}
+.mut{color:var(--mut);font-size:12px}.err{color:var(--minus)}.ok{color:var(--plus)}
+.rowbtn{display:flex;gap:6px}.rowbtn button{margin:0;padding:7px;font-size:13px}
+</style></head><body>
+<h2>Доступ операторов</h2>
+
+<div class="card" id="loginCard">
+  <label>Логин администратора</label><input id="lg" autocomplete="username">
+  <label>Пароль</label><input id="pw" type="password" autocomplete="current-password">
+  <button onclick="login()">Войти</button>
+  <div id="lgErr" class="err" style="margin-top:8px"></div>
+</div>
+
+<div id="panel" style="display:none">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="mut">Вошёл: <b id="who"></b></div>
+      <button class="sec" style="width:auto;margin:0;padding:6px 12px" onclick="logout()">Выйти</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="mut">🔀 Режим записи — для ВСЕХ устройств</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <b id="modeLabel" style="font-size:17px">—</b>
+      <button id="modeBtn" style="width:auto;margin:0;padding:9px 16px" onclick="switchMode()">Переключить</button>
+    </div>
+    <div class="mut" id="modeHint" style="margin-top:8px"></div>
+  </div>
+  <div class="card"><div id="users"></div></div>
+  <div class="card">
+    <h2 style="font-size:15px;margin:0 0 6px" id="formTitle">Новый оператор</h2>
+    <label>Логин</label><input id="f_login">
+    <label>Пароль <span class="mut">(при правке пусто = не менять)</span></label><input id="f_pass">
+    <label>Имя</label><input id="f_name">
+    <label>Роль</label><select id="f_role">
+      <option value="operator1">operator1 — Москва (главный)</option>
+      <option value="operator2">operator2 — регионы/Узбекистан</option>
+      <option value="operator3">operator3</option>
+      <option value="report">report — только отчёты</option>
+      <option value="admin">admin — полный доступ</option>
+    </select>
+    <label><input type="checkbox" id="f_active" checked style="width:auto"> доступ включён</label>
+    <button onclick="saveUser()">Сохранить</button>
+    <button class="sec" onclick="resetForm()">Очистить форму</button>
+    <div id="saveMsg" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+const SB='https://bmnqmjuotpwwjejzefed.supabase.co';
+const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
+let TOKEN='';
+function $(x){return document.getElementById(x);}
+async function makeToken(lg,pw){
+  var iss=new Date(Date.now()+108e5).toISOString().slice(0,10).replace(/-/g,'');
+  var raw=lg+'|'+pw+'|kassa_salt_2026|'+iss;
+  var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
+  var hex=[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  return lg+'.'+iss+'.'+hex;
+}
+async function rpc(fn,args){
+  var r=await fetch(SB+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'apikey':KEY,'Authorization':'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(args)});
+  try{return await r.json();}catch(e){return {error:'ответ не JSON'};}
+}
+async function login(){
+  $('lgErr').textContent='';
+  var t=await makeToken($('lg').value.trim(),$('pw').value);
+  var r=await rpc('p_admin_users',{token:t});
+  if(!r||r.error||r.ok===false){$('lgErr').textContent=(r&&r.error)||'Неверный логин/пароль или не админ';return;}
+  TOKEN=t;$('who').textContent=$('lg').value.trim();
+  $('loginCard').style.display='none';$('panel').style.display='block';
+  render(r.users); loadMode();
+}
+var CURMODE='apps';
+async function loadMode(){
+  var c=await rpc('p_get_config',{});
+  CURMODE=(c&&c.write_mode==='sb')?'sb':'apps';
+  var sb=CURMODE==='sb';
+  $('modeLabel').innerHTML=sb?'<span class="ok">⚡ Supabase (быстро)</span>':'<span style="color:#8b919c">🐢 Apps Script (старое)</span>';
+  $('modeBtn').textContent=sb?'Вернуть на Apps Script':'Включить Supabase';
+  $('modeHint').textContent=sb?'Все устройства пишут в Supabase. Переключение обратимо.':'Все устройства пишут в Apps Script (как сейчас).';
+}
+async function switchMode(){
+  var to=CURMODE==='sb'?'apps':'sb';
+  if(!confirm(to==='sb'?'Включить запись в Supabase для ВСЕХ устройств?':'Вернуть ВСЕХ на Apps Script?'))return;
+  var r=await rpc('p_set_write_mode',{p_mode:to,token:TOKEN});
+  if(r&&r.ok){ loadMode(); alert('Готово. Устройства переключатся в течение ~15 секунд.'); }
+  else alert((r&&r.error)||'ошибка');
+}
+function logout(){TOKEN='';$('panel').style.display='none';$('loginCard').style.display='block';$('pw').value='';}
+function render(users){
+  $('users').innerHTML='<div class="mut" style="margin-bottom:6px">Операторы ('+users.length+')</div>'+users.map(function(u){
+    return '<div class="u"><div><div class="nm">'+(u.name||u.login)+' <span class="pill '+(u.active?'on':'off')+'">'+(u.active?'вкл':'выкл')+'</span></div>'+
+      '<div class="meta">'+u.login+' · '+u.role+'</div></div>'+
+      '<div class="rowbtn"><button class="sec" onclick=\'edit("'+u.login+'","'+(u.name||'').replace(/"/g,'')+'","'+u.role+'",'+u.active+')\'>✎</button>'+
+      '<button class="'+(u.active?'warn':'sec')+'" onclick="toggle(\''+u.login+'\','+(!u.active)+')">'+(u.active?'выкл':'вкл')+'</button></div></div>';
+  }).join('');
+}
+async function refresh(){var r=await rpc('p_admin_users',{token:TOKEN});if(r&&r.users)render(r.users);}
+function edit(login,name,role,active){$('formTitle').textContent='Правка: '+login;$('f_login').value=login;$('f_login').readOnly=true;$('f_pass').value='';$('f_name').value=name;$('f_role').value=role;$('f_active').checked=active;window.scrollTo(0,9999);}
+function resetForm(){$('formTitle').textContent='Новый оператор';$('f_login').value='';$('f_login').readOnly=false;$('f_pass').value='';$('f_name').value='';$('f_role').value='operator1';$('f_active').checked=true;$('saveMsg').textContent='';}
+async function saveUser(){
+  var p={login:$('f_login').value.trim(),pass:$('f_pass').value,name:$('f_name').value.trim(),role:$('f_role').value,active:$('f_active').checked};
+  var r=await rpc('p_admin_save_user',{payload:p,token:TOKEN});
+  $('saveMsg').innerHTML=r&&r.ok?'<span class="ok">Сохранено</span>':'<span class="err">'+((r&&r.error)||'ошибка')+'</span>';
+  if(r&&r.ok){resetForm();refresh();}
+}
+async function toggle(login,active){await rpc('p_admin_toggle_user',{p_login:login,p_active:active,token:TOKEN});refresh();}
+</script></body></html>

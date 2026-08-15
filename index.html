@@ -111,9 +111,12 @@
   .reg-tab.sel .c{color:var(--txt);}
   .reg-tab.add .l{color:var(--accent); background:transparent;}
   /* v34: предпросмотр остатка клиента (глаз у имени) */
-  .bal-row{display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;}
-  .bal-eye{font-size:12px; padding:5px 10px; border-radius:20px; background:var(--card2); border:1px solid var(--line); color:var(--muted); cursor:pointer;}
-  .bal-prev{display:flex; align-items:center; gap:6px;}
+  .lbl-row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .bal-eye{display:inline-flex; align-items:center; gap:5px; font-size:11px; padding:4px 9px; border-radius:20px; background:var(--card2); border:1px solid var(--line); color:var(--muted); cursor:pointer; transition:background .12s,color .12s,border-color .12s; -webkit-tap-highlight-color:transparent;}
+  .bal-eye svg{width:15px; height:15px; display:block;}
+  .bal-eye.on{color:#fff; background:var(--accent); border-color:var(--accent);}
+  .bal-prev{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
+  .bal-prev:empty{margin-top:0;}
   .bal-pill{font-size:14px; font-weight:600; padding:4px 10px; border-radius:20px;}
   .bal-pill.plus{background:rgba(61,220,132,.15); color:var(--plus);}
   .bal-pill.minus{background:rgba(255,107,107,.15); color:var(--minus);}
@@ -282,9 +285,12 @@
         <div class="act-btn berdim" onclick="mPick(this,'berdim')">Бердим <small data-i18n="berdimSub">расход −</small></div>
         <div class="act-btn obmen" onclick="mPick(this,'obmen')">Обмен <small data-i18n="obmenSub">айирбошлаш</small></div>
       </div>
-      <div class="field" id="mNameField"><label data-i18n="lblClient">Клиент</label>
-        <div class="ac-wrap"><input type="text" id="mName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('mName','mAc')" onfocus="acInput('mName','mAc')"><div class="ac-list" id="mAc"></div></div>
-        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('mName','mBalPrev')">👁 остаток</button><span id="mBalPrev" class="bal-prev"></span></div>
+      <div class="field" id="mNameField">
+        <div class="lbl-row"><label data-i18n="lblClient">Клиент</label>
+          <button type="button" class="bal-eye" id="mBalEye" aria-label="остаток" onclick="toggleClientBal('mName','mBalPrev','mBalEye')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="balEye">остаток</span></button>
+        </div>
+        <div class="ac-wrap"><input type="text" id="mName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('mName','mAc');balMaybeRefresh('mName','mBalPrev','mBalEye')" onfocus="acInput('mName','mAc')"><div class="ac-list" id="mAc"></div></div>
+        <div id="mBalPrev" class="bal-prev"></div>
       </div>
       <div class="field" id="mRubField"><label data-i18n="lblSumRub">Сумма ₽</label><input type="text" id="mRub" class="money" placeholder="0" inputmode="numeric"></div>
       <div class="field" id="mUsdToggleField">
@@ -335,9 +341,12 @@
         <div class="act-btn oldim" onclick="uPick(this,'oldim')">Олдим <small id="uOldimSub" data-i18n="oldimSubR">сотиб олдим $</small></div>
         <div class="act-btn berdim" onclick="uPick(this,'berdim')">Бердим <small id="uBerdimSub" data-i18n="berdimSubR">сотдим $</small></div>
       </div>
-      <div class="field"><label data-i18n="lblClient">Клиент</label>
-        <div class="ac-wrap"><input type="text" id="uName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('uName','uAc')" onfocus="acInput('uName','uAc')"><div class="ac-list" id="uAc"></div></div>
-        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('uName','uBalPrev')">👁 остаток</button><span id="uBalPrev" class="bal-prev"></span></div>
+      <div class="field">
+        <div class="lbl-row"><label data-i18n="lblClient">Клиент</label>
+          <button type="button" class="bal-eye" id="uBalEye" aria-label="остаток" onclick="toggleClientBal('uName','uBalPrev','uBalEye')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="balEye">остаток</span></button>
+        </div>
+        <div class="ac-wrap"><input type="text" id="uName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('uName','uAc');balMaybeRefresh('uName','uBalPrev','uBalEye')" onfocus="acInput('uName','uAc')"><div class="ac-list" id="uAc"></div></div>
+        <div id="uBalPrev" class="bal-prev"></div>
       </div>
       <div class="field"><label data-i18n="lblToWhom">Кимга</label><input type="text" id="uToWhom" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="uPhone" inputmode="tel" placeholder="+998 90 123 45 67"></div>
@@ -378,9 +387,12 @@
         <div class="act-btn oldim" onclick="gPick(this,'oldim')">Олдим <small id="gOldimSub" data-i18n="oldimSubR">сотиб олдим $</small></div>
         <div class="act-btn berdim" onclick="gPick(this,'berdim')">Бердим <small id="gBerdimSub" data-i18n="berdimSubR">сотдим $</small></div>
       </div>
-      <div class="field"><label data-i18n="lblClient">Клиент</label>
-        <div class="ac-wrap"><input type="text" id="gName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('gName','gAc')" onfocus="acInput('gName','gAc')"><div class="ac-list" id="gAc"></div></div>
-        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('gName','gBalPrev')">👁 остаток</button><span id="gBalPrev" class="bal-prev"></span></div>
+      <div class="field">
+        <div class="lbl-row"><label data-i18n="lblClient">Клиент</label>
+          <button type="button" class="bal-eye" id="gBalEye" aria-label="остаток" onclick="toggleClientBal('gName','gBalPrev','gBalEye')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="balEye">остаток</span></button>
+        </div>
+        <div class="ac-wrap"><input type="text" id="gName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('gName','gAc');balMaybeRefresh('gName','gBalPrev','gBalEye')" onfocus="acInput('gName','gAc')"><div class="ac-list" id="gAc"></div></div>
+        <div id="gBalPrev" class="bal-prev"></div>
       </div>
       <div class="field"><label data-i18n="lblToWhom">Кимга</label><input type="text" id="gToWhom" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="gPhone" inputmode="tel" data-i18n-ph="phPhone" placeholder="телефон"></div>
@@ -746,7 +758,7 @@
     balAll:'Все', balHakF:'Кредиторы', balKarzF:'Должники', noClients:'Клиентов нет', searchName:'Поиск по имени...',
     bsSum:'по сумме', bsDate:'по свежести', bsName:'по имени', bsDead:'спящие', balQuiet:'тихо, дн.',
     endDay:'Остаток на конец дня', genHist:'Общая история', earnedDay:'Заработано за день', ovProfitTap:'тап — откуда пришла',
-    qbFull:'Полный отчёт', dataAt:'Данные на', updBtn:'Обновить', srvW:'сервер',
+    qbFull:'Полный отчёт', dataAt:'Данные на', updBtn:'Обновить', srvW:'сервер', balEye:'остаток',
     archDrop:'Сбросить архивы', archDropped:'Сброшено архивов:',
     archHint:'Закрытые месяцы хранятся в телефоне и не перезапрашиваются. Сбросьте, если пересчитали прошлый месяц.',
     vdWritten:'✓ Операция записана', vdWrittenSub:'Повторять не нужно — она уже в таблице.',
@@ -851,7 +863,7 @@
     balAll:'Ҳаммаси', balHakF:'Ҳақдор', balKarzF:'Қарздор', noClients:'Мижоз йўқ', searchName:'Исм бўйича қидириш...',
     bsSum:'сумма бўйича', bsDate:'янгилиги', bsName:'исм', bsDead:'ухлаётган', balQuiet:'жим, кун',
     endDay:'Кун охирида қолдиқ', genHist:'Умумий тарих', earnedDay:'Кунлик фойда', ovProfitTap:'қаердан келгани',
-    qbFull:'Тўлиқ ҳисобот', dataAt:'Маълумот', updBtn:'Янгилаш', srvW:'сервер',
+    qbFull:'Тўлиқ ҳисобот', dataAt:'Маълумот', updBtn:'Янгилаш', srvW:'сервер', balEye:'қолдиқ',
     archDrop:'Архивларни тозалаш', archDropped:'Тозаланди:',
     archHint:'Ёпилган ойлар телефонда сақланади ва қайта сўралмайди. Ўтган ой қайта ҳисобланган бўлса тозаланг.',
     vdWritten:'✓ Амал ёзилди', vdWrittenSub:'Такрорлаш шарт эмас — у жадвалда бор.',
@@ -1190,22 +1202,37 @@
     saveTransfer:      {fn:'p_save_transfer',    body:function(a,t){return {payload:a.payload,token:t};}},
     saveStartBalance:  {fn:'p_save_start',       body:function(a,t){return {payload:a.payload,token:t};}},
     executeRequest:    {fn:'p_execute_request',  body:function(a,t){return {p_opid:a.opId,token:t};}},
+    executeAllRequests:{fn:'p_execute_all_requests', body:function(a,t){return {p_region:a.region,token:t};}},
     cancelOperation:   {fn:'p_cancel_operation', body:function(a,t){return {p_opid:a.opId,p_force:(a.force!==undefined?a.force:true),token:t};}},
     editOperation:     {fn:'p_edit_operation',   body:function(a,t){return {p_opid:a.opId,fields:a.fields,token:t};}},
     changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,token:t};}}
   };
-  // v34: предпросмотр остатка клиента (кнопка «👁 остаток» у имени, Вариант 3C)
-  function showClientBal(inputId, prevId){
+  // v35: предпросмотр остатка клиента — иконка-глаз ТОГГЛ рядом с именем.
+  // Нажат (.on) → показывает баланс и сам обновляется при смене клиента; не нажат → пусто.
+  function toggleClientBal(inputId, prevId, eyeId){
+    var eye=document.getElementById(eyeId), box=document.getElementById(prevId);
+    if(!eye||!box) return;
+    if(eye.classList.contains('on')){ eye.classList.remove('on'); box.innerHTML=''; return; }
+    eye.classList.add('on'); _loadClientBal_(inputId, prevId);
+  }
+  // Обновление на лету: только если глаз включён (иначе ничего не грузим).
+  function balMaybeRefresh(inputId, prevId, eyeId){
+    var eye=document.getElementById(eyeId); if(eye&&eye.classList.contains('on')) _loadClientBal_(inputId, prevId);
+  }
+  function balEyeOff_(eyeId, prevId){ var e=document.getElementById(eyeId); if(e)e.classList.remove('on'); var b=document.getElementById(prevId); if(b)b.innerHTML=''; }
+  function _loadClientBal_(inputId, prevId){
     var nm=(document.getElementById(inputId).value||'').trim();
     var box=document.getElementById(prevId); if(!box) return;
     if(!nm){ box.innerHTML='<span class="mt">введите имя</span>'; return; }
     box.innerHTML='<span class="mt">…</span>';
+    var q=nm;   // защита от гонки: показываем только ответ по текущему имени
     sbRpc_('p_client_balance',{p_name:nm}).then(function(r){
+      if((document.getElementById(inputId).value||'').trim()!==q) return;
       if(!r||r.balance===undefined||r.error){ box.innerHTML='<span class="mt">нет данных</span>'; return; }
       var b=Number(r.balance||0), cls=b>0?'plus':(b<0?'minus':''), sign=b>0?'+':(b<0?'−':'');
       var d=r.last_dt?(_mskDay(r.last_dt).slice(8,10)+'.'+_mskDay(r.last_dt).slice(5,7)+' · '+_mskHM(r.last_dt)):'';
       box.innerHTML='<span class="bal-pill '+cls+'">'+sign+fmt(Math.abs(b))+' ₽</span>'+(d?'<span class="bal-date">'+d+'</span>':'');
-    }).catch(function(){ box.innerHTML='<span class="mt">ошибка</span>'; });
+    }).catch(function(){ if((document.getElementById(inputId).value||'').trim()===q) box.innerHTML='<span class="mt">ошибка</span>'; });
   }
   // v33: вызов читающей RPC Supabase (возвращает JSON функции)
   function sbRpc_(fn, body){
@@ -1670,7 +1697,9 @@
     html+='<div class="ac-item add" onclick="acAdd(\''+inpId+'\',\''+listId+'\')">'+t('newClientBtn')+'</div>';
     list.innerHTML=html; list.classList.add('open');
   }
-  function acPick(inpId,listId,el){document.getElementById(inpId).value=el.getAttribute('data-n'); document.getElementById(listId).classList.remove('open');}
+  function acPick(inpId,listId,el){document.getElementById(inpId).value=el.getAttribute('data-n'); document.getElementById(listId).classList.remove('open');
+    balMaybeRefresh(inpId, inpId.replace('Name','BalPrev'), inpId.replace('Name','BalEye'));   // v35: обновить остаток если глаз включён
+  }
   function acAdd(inpId,listId){
     var n=document.getElementById(inpId).value.trim(); document.getElementById(listId).classList.remove('open');
     if(!n){toast(t('enterNameFirst'),true); return;}
@@ -1915,6 +1944,7 @@
     document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdLast=''; mExTouch=[];
     document.getElementById('mNameField').classList.remove('hidden'); document.getElementById('mRubField').classList.remove('hidden');
     document.getElementById('mUsdToggleField').classList.remove('hidden'); document.getElementById('mExchField').classList.add('hidden'); mCalcRate();
+    balEyeOff_('mBalEye','mBalPrev');
   }
   function mRefreshBalance(){apiCall('getMoscowBalance',{},AUTH_TOKEN).then(function(b){document.getElementById('mskRub').textContent=fmt(b.rub)+' ₽'; document.getElementById('mskUsd').textContent='$ '+fmt(b.usd);});}
   // фильтр ленты по выбранному дню: "сегодня" в datetime — только HH:mm (без точки)
@@ -2237,6 +2267,7 @@
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.last='';
       ['Name','Usd'+(pfx==='g'?'In':''),'Rate','Rub','ToWhom','Phone','Memo','OpDate'].forEach(function(s){var e=id(s); if(e)e.value='';});
       id('CalcBox').innerHTML=t('calcEmpty'); hint();
+      var eb=id('BalEye'); if(eb)eb.classList.remove('on'); var bp=id('BalPrev'); if(bp)bp.innerHTML='';
     }
     // счётчик поколений запросов экрана: применяем только последний ответ
     // (гонка: поздний ответ старого периода/региона перетирал свежие данные)
@@ -2778,12 +2809,15 @@
   var aRegionLoaded=false;
   function aInitRegionFilter(){
     if(aRegionLoaded) return; aRegionLoaded=true;
-    apiCall('getRegions',{},AUTH_TOKEN).then(function(list){
-      var arr=(list||[]); var sel=document.getElementById('aRegion');
+    var fill=function(arr){ var sel=document.getElementById('aRegion');
       var opts='<option value="">Все</option><option value="Москва">Москва</option>';
-      arr.forEach(function(r){ opts+='<option value="'+esc(r)+'">'+esc(r)+'</option>'; });
-      sel.innerHTML=opts;
-    });
+      (arr||[]).forEach(function(r){ if(r!=='Москва') opts+='<option value="'+esc(r)+'">'+esc(r)+'</option>'; });
+      sel.innerHTML=opts; };
+    if(SB_ON){   // v35: регионы из _sbReg
+      sbFetchBase().then(function(){ fill((_sbReg||[]).map(function(x){return (x.region||'').trim();}).filter(Boolean)); }).catch(function(){ fill([]); });
+      return;
+    }
+    apiCall('getRegions',{},AUTH_TOKEN).then(fill);
   }
   function aLoadCancel(){
     aInitRegionFilter();
@@ -4154,7 +4188,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 34;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4238,6 +4272,15 @@
     if(cached && cached.length){
       moFill_(cached.filter(function(r){return r!=='Москва';}));
       cb();
+      return;
+    }
+    if(SB_ON){   // v35: список регионов из _sbReg, без Apps Script
+      sbFetchBase().then(function(){
+        var list=(_sbReg||[]).map(function(x){return (x.region||'').trim();}).filter(Boolean);
+        if(list.length) cPut('reglist',list);
+        moFill_(list.filter(function(r){return r!=='Москва';}));
+        cb();
+      }).catch(function(){ moFill_([]); cb(); });
       return;
     }
     apiCall('getRegions',{},AUTH_TOKEN).then(function(list){
@@ -4365,6 +4408,16 @@
       }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
       return;
     }
+    // v35: диапазон «дни» уходит в закрытый месяц — live + нужные архивы, считаем целиком
+    if(SB_ON && pv.charAt(0)==='d' && fromK<curMStart){
+      var need=[], yy=+fromK.slice(0,4), mm=+fromK.slice(5,7), endM=CUR_MONTH_();
+      while(true){ var s=yy+'-'+(mm<10?'0':'')+mm; if(s>=endM) break; need.push(s); mm++; if(mm>12){mm=1;yy++;} }
+      Promise.all([sbFetchBase()].concat(need.map(function(m){return sbFetchMonth(m);}))).then(function(res){
+        var rows=(_sbLive||[]).slice(); for(var i=1;i<res.length;i++) rows=rows.concat(res[i]||[]);
+        var r=sbComputeTarih(place,period,rows); cPut(ck,r); thRender(r);
+      }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
 
     apiCall('getBalanceHistory',{place:place,period:period,rev:revOf_(c)},AUTH_TOKEN,!!c).then(function(r){
       if(!r||!r.ok){ if(!c) box.innerHTML='<div class="empty">'+((r&&r.error)||t('err'))+'</div>'; return; }
@@ -4408,6 +4461,23 @@
     if(!box) return;
     if(box.style.display==='block'){ box.style.display='none'; return; }
     box.style.display='block';
+    // v35: операции дня из Supabase — текущий месяц из live, закрытый из архива (src=месяц)
+    if(SB_ON){
+      var mk=day.slice(0,7);
+      var renderSb=function(rows){
+        var items=(rows||[]).filter(function(r){return (r.place||'').trim()===place && _mskDay(r.dt)===day
+              && String(r.id||'').indexOf('me_')!==0 && (r.status||'').trim()!=='отменён';})
+          .sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;})
+          .map(function(r){ return { time:_mskHM(r.dt), action:(r.action||'').trim(), name:(r.name||'').trim(),
+              usd:Number(r.usd||0), rate:r.rate, rub:0, rubItog:Number(r.rub_itog||0),
+              profit:Number(r.profit||0), status:(r.status||'').trim(), executor:r.executor }; });
+        thDayRender(box,{items:items});
+      };
+      var pErr=function(){ box.innerHTML='<div style="color:var(--muted);font-size:11px;padding:6px 0;">'+t('connLost')+'</div>'; };
+      if(mk===CUR_MONTH_()) sbFetchBase().then(function(){ renderSb(_sbLive); }).catch(pErr);
+      else sbFetchMonth(mk).then(renderSb).catch(pErr);
+      return;
+    }
     // v22: день текущего месяца уже лежит в снимке — рисуем и не спрашиваем
     var loc=(day.slice(0,7)===CUR_MONTH_())?opsOfDay_(place,day):null;
     if(loc){

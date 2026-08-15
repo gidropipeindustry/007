@@ -106,8 +106,14 @@ function render(users){
     return '<div class="u"><div><div class="nm">'+(u.name||u.login)+' <span class="pill '+(u.active?'on':'off')+'">'+(u.active?'вкл':'выкл')+'</span></div>'+
       '<div class="meta">'+u.login+' · '+u.role+'</div></div>'+
       '<div class="rowbtn"><button class="sec" onclick=\'edit("'+u.login+'","'+(u.name||'').replace(/"/g,'')+'","'+u.role+'",'+u.active+')\'>✎</button>'+
-      '<button class="'+(u.active?'warn':'sec')+'" onclick="toggle(\''+u.login+'\','+(!u.active)+')">'+(u.active?'выкл':'вкл')+'</button></div></div>';
+      '<button class="'+(u.active?'warn':'sec')+'" onclick="toggle(\''+u.login+'\','+(!u.active)+')">'+(u.active?'выкл':'вкл')+'</button>'+
+      '<button class="warn" onclick=\'delUser("'+u.login+'")\'>🗑</button></div></div>';
   }).join('');
+}
+async function delUser(login){
+  if(!confirm('Удалить оператора «'+login+'»? Это нельзя отменить.'))return;
+  var r=await rpc('p_admin_del_user',{p_login:login,token:TOKEN});
+  if(r&&r.ok){refresh();} else alert((r&&r.error)||'ошибка');
 }
 async function refresh(){var r=await rpc('p_admin_users',{token:TOKEN});if(r&&r.users)render(r.users);}
 function edit(login,name,role,active){$('formTitle').textContent='Правка: '+login;$('f_login').value=login;$('f_login').readOnly=true;$('f_pass').value='';$('f_name').value=name;$('f_role').value=role;$('f_active').checked=active;window.scrollTo(0,9999);}

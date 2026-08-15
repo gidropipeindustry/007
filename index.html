@@ -97,14 +97,19 @@
   .switch input:checked + .slider{background:var(--accent);}
   .switch input:checked + .slider:before{transform:translateX(20px);}
 
-  .reg-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:2px;}
-  .reg-tab{flex:0 0 auto; min-width:50px; padding:8px 10px 7px; background:var(--card2); border:1px solid var(--line);
-    border-radius:12px; cursor:pointer; text-align:center; transition:.15s;}
-  .reg-tab .l{font-size:18px; font-weight:800; line-height:1; color:#e08a4f;}
-  .reg-tab .c{font-size:10px; color:var(--muted); margin-top:3px; letter-spacing:.2px; white-space:nowrap;}
+  /* v33: 2 ряда со скроллом вправо, буква в кружке сверху, название снизу */
+  .reg-tabs{display:grid; grid-auto-flow:column; grid-template-rows:repeat(2,1fr); grid-auto-columns:64px;
+    gap:8px; overflow-x:auto; padding-bottom:4px;}
+  .reg-tab{display:flex; flex-direction:column; align-items:center; gap:5px; padding:9px 4px 8px;
+    background:var(--card2); border:1px solid var(--line); border-radius:12px; cursor:pointer; transition:.15s;}
+  .reg-tab .l{width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; line-height:1; color:#e08a4f; background:rgba(224,138,79,.15);}
+  .reg-tab .c{font-size:10px; color:var(--muted); letter-spacing:.2px; white-space:nowrap; max-width:100%;
+    overflow:hidden; text-overflow:ellipsis;}
   .reg-tab.sel{background:rgba(224,138,79,.15); border-color:#e08a4f;}
+  .reg-tab.sel .l{background:#e08a4f; color:#fff;}
   .reg-tab.sel .c{color:var(--txt);}
-  .reg-tab.add .l{color:var(--accent);}
+  .reg-tab.add .l{color:var(--accent); background:transparent;}
 
   .hidden{display:none;}
 
@@ -1178,6 +1183,12 @@
     editOperation:     {fn:'p_edit_operation',   body:function(a,t){return {p_opid:a.opId,fields:a.fields,token:t};}},
     changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,token:t};}}
   };
+  // v33: вызов читающей RPC Supabase (возвращает JSON функции)
+  function sbRpc_(fn, body){
+    return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify(body||{})}).then(function(r){return r.json();});
+  }
   function sbRpcWrite_(action,args,token){
     var m=SB_WRITE_MAP[action];
     return fetch(SB_URL+'/rest/v1/rpc/'+m.fn,{method:'POST',
@@ -1365,9 +1376,12 @@
     if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
     var st=(r.status||'').trim(); if(st&&st!=='актив'&&st!=='исполнено')m.push(st);
     if(r.executor)m.push('✅ '+r.executor);
+    if(r.operator)m.push(r.operator);                 // v33: кто создал операцию
     var nm=(r.name||'');
     var tap=(nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'';
-    return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div></div>';
+    var noteLine=(r.note&&String(r.note).trim())     // v33: комментарий серой строкой снизу
+      ?'<div class="mt" style="opacity:.8;margin-top:1px">'+esc(String(r.note))+'</div>':'';
+    return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div>'+noteLine+'</div><div class="op-amt '+col+'">'+sum+'</div></div>';
   }
   // ---- ОЙЛИК из Supabase (копия getMonthlyReport, текущий месяц — из live) ----
   function sbComputeMonthly(place, monthKey){
@@ -2493,6 +2507,12 @@
   }
   function gRenderRegionTabs(){
     var box=document.getElementById('gRegionTabs'); var h='';
+    // v33: сортировка по частоте использования (чаще вперёд), если лента загружена
+    if(typeof _sbLive!=='undefined' && _sbLive && _sbLive.length){
+      var _cnt={};
+      _sbLive.forEach(function(o){ var p=(o.place||'').trim(); if(p) _cnt[p]=(_cnt[p]||0)+1; });
+      gRegList=gRegList.slice().sort(function(a,b){ return (_cnt[b]||0)-(_cnt[a]||0); });
+    }
     gRegList.forEach(function(r){
       h+='<div class="reg-tab'+(r===gCurRegion?' sel':'')+'" onclick="gPickRegion(\''+esc(r).replace(/'/g,"\\'")+'\')"><div class="l">'+esc(regLetter(r))+'</div><div class="c">'+esc(r)+'</div></div>';
     });
@@ -2657,7 +2677,9 @@
     var c=cGet('tfeed');
     if(c) tRenderFeed(c);                             // мгновенно из кэша
     if(c && quietOk_('tfeed')) return;
-    apiCall('getTransferFeed',{limit:10},AUTH_TOKEN,!!c).then(function(res){
+    var _p=SB_ON ? sbRpc_('p_transfer_feed',{p_limit:10,token:AUTH_TOKEN})   // v33: переводы из Supabase
+                 : apiCall('getTransferFeed',{limit:10},AUTH_TOKEN,!!c);
+    _p.then(function(res){
       quietSet_('tfeed');
       if(res&&res.ok) cPut('tfeed',res);
       tRenderFeed(res);
@@ -2733,7 +2755,8 @@
       region:   document.getElementById('aRegion').value||'',
       name:     document.getElementById('aName').value.trim()||''
     };
-    apiCall('getOperationsForCancel',{filter:filter,limit:50},AUTH_TOKEN).then(aRenderCancel);
+    (SB_ON ? sbRpc_('p_ops_for_cancel',{p_filter:filter,p_limit:50,token:AUTH_TOKEN})   // v33: список правок из Supabase
+           : apiCall('getOperationsForCancel',{filter:filter,limit:50},AUTH_TOKEN)).then(aRenderCancel);
   }
   function aFilterClick(){
     var b=document.getElementById('aFilterBtn'); if(b) b.classList.add('active');
@@ -2946,7 +2969,7 @@
     });
     if(name==='balance'){ bgDrop('bal'); balLoad(); }
     if(name==='daily') dlLoad();
-    if(name==='overview'){ bgDrop('ovw'); ovLoad(); }
+    if(name==='overview'){ bgDrop('ovw'); _sbTs=0; ovLoad(true); }   // v33: при входе всегда свежий
     if(name==='genhist') ghInit();
     if(name==='monthly'){ bgDrop('mo'+(document.getElementById('moMonth').value||'')); moInit(); }
     if(name==='history') thInit();
@@ -3003,10 +3026,10 @@
       box.innerHTML=h;
     }).catch(function(){ box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
-  function ovLoad(){
+  function ovLoad(force){
     if(OV_DATA) ovRender(OV_DATA);   // мгновенно из памяти/локального кэша
     else document.getElementById('ovBox').innerHTML='<div class="loading">…</div>';
-    if(OV_DATA && quietOk_('ovw')) return;            // проверяли только что — сеть не нужна
+    if(OV_DATA && !force && quietOk_('ovw')) return;   // v33: force при входе пропускает кэш
 
     // v23: общее состояние из Supabase
     if(SB_ON){
@@ -4028,7 +4051,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 32;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 33;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4324,7 +4347,7 @@
   /* валюта региона: карта регион->значок с бэка, по умолчанию $ */
   var CUR=cGet('cur')||{};
   function cur(region){ return CUR[String(region||'').trim()] || '$'; }
-  function curLoad(){ apiCall('getCurrencyMap',{},AUTH_TOKEN,true).then(function(m){ if(m&&typeof m==='object'){ CUR=m; cPut('cur',m); } }).catch(function(){}); }
+  function curLoad(){ (SB_ON?sbRpc_('p_currency',{}):apiCall('getCurrencyMap',{},AUTH_TOKEN,true)).then(function(m){ if(m&&typeof m==='object'&&!m.error){ CUR=m; cPut('cur',m); } }).catch(function(){}); }
   var _dbLast=0;
   // v14: список клиентов лежит на телефоне, поэтому обновляем его редко —
   // раз в 5 минут, а не на каждый тап по вкладке. Apps Script выполняет

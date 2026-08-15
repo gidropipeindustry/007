@@ -1619,7 +1619,7 @@
     operator1:['moscow'],
     operator2:['moscow','uzb','region','reports'],
     operator3:['req'],
-    admin:['moscow','uzb','region','req','transfer','admin','reports'],
+    admin:['moscow','uzb','region','reports','admin','transfer','req'],
     report:['moscow','uzb','region','reports']
   };
   function buildTabs(){
@@ -4188,7 +4188,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.1;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4468,8 +4468,9 @@
         var items=(rows||[]).filter(function(r){return (r.place||'').trim()===place && _mskDay(r.dt)===day
               && String(r.id||'').indexOf('me_')!==0 && (r.status||'').trim()!=='отменён';})
           .sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;})
-          .map(function(r){ return { time:_mskHM(r.dt), action:(r.action||'').trim(), name:(r.name||'').trim(),
-              usd:Number(r.usd||0), rate:r.rate, rub:0, rubItog:Number(r.rub_itog||0),
+          .map(function(r){ var _u=Number(r.usd||0), _ri=Number(r.rub_itog||0);
+            return { time:_mskHM(r.dt), action:(r.action||'').trim(), name:(r.name||'').trim(),
+              usd:_u, rate:r.rate, rub:(_u?0:_ri), rubItog:(_u?_ri:0),   // без $ — рубль как сумма; с $ — рубль в подписи
               profit:Number(r.profit||0), status:(r.status||'').trim(), executor:r.executor }; });
         thDayRender(box,{items:items});
       };

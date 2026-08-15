@@ -110,6 +110,14 @@
   .reg-tab.sel .l{background:#e08a4f; color:#fff;}
   .reg-tab.sel .c{color:var(--txt);}
   .reg-tab.add .l{color:var(--accent); background:transparent;}
+  /* v34: предпросмотр остатка клиента (глаз у имени) */
+  .bal-row{display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;}
+  .bal-eye{font-size:12px; padding:5px 10px; border-radius:20px; background:var(--card2); border:1px solid var(--line); color:var(--muted); cursor:pointer;}
+  .bal-prev{display:flex; align-items:center; gap:6px;}
+  .bal-pill{font-size:14px; font-weight:600; padding:4px 10px; border-radius:20px;}
+  .bal-pill.plus{background:rgba(61,220,132,.15); color:var(--plus);}
+  .bal-pill.minus{background:rgba(255,107,107,.15); color:var(--minus);}
+  .bal-date{font-size:11px; color:var(--muted); padding:4px 8px; border-radius:20px; border:1px solid var(--line);}
 
   .hidden{display:none;}
 
@@ -276,6 +284,7 @@
       </div>
       <div class="field" id="mNameField"><label data-i18n="lblClient">Клиент</label>
         <div class="ac-wrap"><input type="text" id="mName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('mName','mAc')" onfocus="acInput('mName','mAc')"><div class="ac-list" id="mAc"></div></div>
+        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('mName','mBalPrev')">👁 остаток</button><span id="mBalPrev" class="bal-prev"></span></div>
       </div>
       <div class="field" id="mRubField"><label data-i18n="lblSumRub">Сумма ₽</label><input type="text" id="mRub" class="money" placeholder="0" inputmode="numeric"></div>
       <div class="field" id="mUsdToggleField">
@@ -328,6 +337,7 @@
       </div>
       <div class="field"><label data-i18n="lblClient">Клиент</label>
         <div class="ac-wrap"><input type="text" id="uName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('uName','uAc')" onfocus="acInput('uName','uAc')"><div class="ac-list" id="uAc"></div></div>
+        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('uName','uBalPrev')">👁 остаток</button><span id="uBalPrev" class="bal-prev"></span></div>
       </div>
       <div class="field"><label data-i18n="lblToWhom">Кимга</label><input type="text" id="uToWhom" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="uPhone" inputmode="tel" placeholder="+998 90 123 45 67"></div>
@@ -342,10 +352,10 @@
       <button class="submit" id="uSubmit" onclick="uSubmit()" data-i18n="createDeal">Сделка яратиш</button>
       <button class="submit" style="background:var(--card2);border:1px solid var(--line);color:var(--muted);margin-top:8px;" onclick="UZB.reset()" data-i18n="clearForm">Тозалаш</button>
     </div>
+    <div class="card" id="uReqCard"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><div class="sec-title" style="margin:0;" data-i18n="regionDeals">Бу ҳудуд сделкалари</div><div id="uExecAllBtn" onclick="execAllRequests('Узбекистан')" style="display:none; padding:7px 12px; background:rgba(61,220,132,.15); border:1px solid var(--accent); border-radius:9px; color:var(--accent); font-size:12px; font-weight:700; cursor:pointer;"><span data-i18n="execAll">Барчасини бажарилди</span></div></div><div id="uReqList"><div class="loading">…</div></div></div>
     <div class="card feed"><h2 data-i18n="histUzb">История (Узбекистан) · 7 дней</h2>
       <div id="uFeed"><div class="loading">…</div></div>
     </div>
-    <div class="card" id="uReqCard"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><div class="sec-title" style="margin:0;" data-i18n="regionDeals">Бу ҳудуд сделкалари</div><div id="uExecAllBtn" onclick="execAllRequests('Узбекистан')" style="display:none; padding:7px 12px; background:rgba(61,220,132,.15); border:1px solid var(--accent); border-radius:9px; color:var(--accent); font-size:12px; font-weight:700; cursor:pointer;"><span data-i18n="execAll">Барчасини бажарилди</span></div></div><div id="uReqList"><div class="loading">…</div></div></div>
   </div>
 
   <!-- ====== РЕГИОНЫ ====== -->
@@ -370,6 +380,7 @@
       </div>
       <div class="field"><label data-i18n="lblClient">Клиент</label>
         <div class="ac-wrap"><input type="text" id="gName" data-i18n-ph="phName" placeholder="1-2 ҳарф..." autocomplete="off" oninput="acInput('gName','gAc')" onfocus="acInput('gName','gAc')"><div class="ac-list" id="gAc"></div></div>
+        <div class="bal-row"><button type="button" class="bal-eye" onclick="showClientBal('gName','gBalPrev')">👁 остаток</button><span id="gBalPrev" class="bal-prev"></span></div>
       </div>
       <div class="field"><label data-i18n="lblToWhom">Кимга</label><input type="text" id="gToWhom" data-i18n-ph="phOptional" placeholder="ихтиёрий"></div>
       <div class="field"><label data-i18n="lblPhone">Телефон</label><input type="text" id="gPhone" inputmode="tel" data-i18n-ph="phPhone" placeholder="телефон"></div>
@@ -1183,6 +1194,19 @@
     editOperation:     {fn:'p_edit_operation',   body:function(a,t){return {p_opid:a.opId,fields:a.fields,token:t};}},
     changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,token:t};}}
   };
+  // v34: предпросмотр остатка клиента (кнопка «👁 остаток» у имени, Вариант 3C)
+  function showClientBal(inputId, prevId){
+    var nm=(document.getElementById(inputId).value||'').trim();
+    var box=document.getElementById(prevId); if(!box) return;
+    if(!nm){ box.innerHTML='<span class="mt">введите имя</span>'; return; }
+    box.innerHTML='<span class="mt">…</span>';
+    sbRpc_('p_client_balance',{p_name:nm}).then(function(r){
+      if(!r||r.balance===undefined||r.error){ box.innerHTML='<span class="mt">нет данных</span>'; return; }
+      var b=Number(r.balance||0), cls=b>0?'plus':(b<0?'minus':''), sign=b>0?'+':(b<0?'−':'');
+      var d=r.last_dt?(_mskDay(r.last_dt).slice(8,10)+'.'+_mskDay(r.last_dt).slice(5,7)+' · '+_mskHM(r.last_dt)):'';
+      box.innerHTML='<span class="bal-pill '+cls+'">'+sign+fmt(Math.abs(b))+' ₽</span>'+(d?'<span class="bal-date">'+d+'</span>':'');
+    }).catch(function(){ box.innerHTML='<span class="mt">ошибка</span>'; });
+  }
   // v33: вызов читающей RPC Supabase (возвращает JSON функции)
   function sbRpc_(fn, body){
     return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',
@@ -1246,6 +1270,14 @@
       sbGetAll('operations?src=eq.live&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.desc,id.asc'),
       sbGet('regions?select=*')
     ]).then(function(a){ _sbLive=a[0]; _sbReg=a[1]; _sbTs=Date.now(); _sbMergePending(); });
+  }
+  // v34: архив закрытого месяца (самодостаточен: операции месяца + снимки me_ входящего остатка).
+  // Кэш навсегда в памяти — закрытый месяц не меняется.
+  var _sbArch={};
+  function sbFetchMonth(mk){
+    if(_sbArch[mk]) return Promise.resolve(_sbArch[mk]);
+    return sbGetAll('operations?src=eq.'+encodeURIComponent(mk)+'&select=name,place,action,rub,usd,rate,rub_itog,profit,status,executor,operator,note,dt,id&order=dt.asc,id.asc')
+      .then(function(rows){ _sbArch[mk]=rows; return rows; });
   }
   // v23: счётчик сделок и дата последней — по ВСЕЙ истории (live+архивы).
   // Лёгкий запрос: только имя, дата, id, статус. Кэш 5 минут.
@@ -1357,7 +1389,7 @@
     var yd=_ydMsk();
     var endBal=(place&&allRows)?sbEndBal(allRows,place):null;
     return keys.map(function(d){
-      var list=days[d], dd=new Date(d+'T12:00:00');
+      var list=days[d].slice().sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;}), dd=new Date(d+'T12:00:00');   // v34: свежее сверху
       var lbl=(d===tod?t('today'):d===yd?t('yesterday'):(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WDay(dd.getDay());
       var h='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
       h+=list.map(sbFeedRow).join('');
@@ -1384,12 +1416,12 @@
     return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div>'+noteLine+'</div><div class="op-amt '+col+'">'+sum+'</div></div>';
   }
   // ---- ОЙЛИК из Supabase (копия getMonthlyReport, текущий месяц — из live) ----
-  function sbComputeMonthly(place, monthKey){
+  function sbComputeMonthly(place, monthKey, rowsSrc){   // v34: rowsSrc — архив прошлого месяца; иначе live
     var mStart=monthKey+'-01', mEnd=monthKey+'-31';
     var opUsd=0,opBuyUsd=0,opBuyRub=0,opCash=0;
     var buys={count:0,usd:0,rub:0,items:[]}, sells={count:0,usd:0,rub:0,items:[]};
     var profit=0,opsCount=0,monthCash=0;
-    var src=_sbLive.filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
+    var src=(rowsSrc||_sbLive).filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
     src.forEach(function(r){
       var dk=_sbDay(r); if(!dk)return;
       var usd=Number(r.usd||0), fr=_sbFactRub(r), e=Number(r.rub||0);
@@ -1415,8 +1447,8 @@
       buys:buys,sells:sells};
   }
   // ---- ТАРИХ из Supabase (остаток по дням) ----
-  function sbComputeTarih(place, period){
-    var src=_sbLive.filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
+  function sbComputeTarih(place, period, rowsSrc){   // v34: rowsSrc — архив прошлого месяца; иначе live
+    var src=(rowsSrc||_sbLive).filter(function(r){return (r.place||'').trim()===place && (r.status||'').trim()!=='отменён';});
     var byDay={};
     src.forEach(function(r){var d=_sbDay(r);if(!d)return;if(!byDay[d])byDay[d]={usd:0,cash:0,bu:0,br:0};
       var u=Number(r.usd||0),e=Number(r.rub||0),fr=_sbFactRub(r);
@@ -1712,7 +1744,10 @@
     _forceFresh=true;  // ⟳ всегда мимо серверного кэша
     scrDrop_();        // кэш экранов долой, закрытые месяцы останутся
     refreshDB(true);   // список клиентов тоже освежаем
-    snapLoad(true);    // снимок пересчитать целиком
+    // v34: старый снимок Apps Script (скан всего листа, ~10 сек) — ТОЛЬКО в режиме Apps Script.
+    // На Supabase он не нужен: просто заставляем перечитать базу, экран подтянет свежее.
+    if(SB_ON){ _sbTs=0; BAL_TS=0; OV_TS=0; quietClear_(); }
+    else { snapLoad(true); }
     showScreen(name);
     _forceFresh=false;
   }
@@ -1976,10 +2011,12 @@
   function sbLivePrepend_(row, place){
     // res.row: Москва {rub(E,знак),usd(знак)}; регион {usd(знак),rub=|H|}
     var now=new Date();
-    // v28: полный UTC ISO — тот же формат, что у строки из Supabase. Раньше было
-    // «UTC-дата + МСК-время» → ключ не совпадал с реальной строкой, ожидающая
-    // висела до таймаута и мелькала дублем/застревала (−1).
-    var iso=now.toISOString();
+    // v28: полный UTC ISO — тот же формат, что у строки из Supabase.
+    // v34: если запись ЗАДНИМ ЧИСЛОМ — берём реальную дату из ответа сервера
+    // (row.datetime), а не now(). Иначе ожидающая строка показывалась на «сегодня»
+    // и висела, пока зеркало не догонит. Теперь дата сразу верная и ключ совпадёт.
+    var iso=(row.datetime && !isNaN(Date.parse(row.datetime)))
+              ? new Date(row.datetime).toISOString() : now.toISOString();
     var pl=row.place||place||'Москва';
     var usd=Number(row.usd||0);
     var ritog=(pl==='Москва') ? Number(row.rub||0)          // Москва: рубль-итог = E
@@ -2359,8 +2396,10 @@
   function sbRegionScreen(region){
     var rg=null; _sbReg.forEach(function(x){if((x.region||'').trim()===region)rg=x;});
     var usd=rg?Number(rg.usd||0):0, avg=rg?Number(rg.avg||0):0, profit=rg?(Number(rg.profit_total||0)+Number(rg.profit_start||0)):0;
-    var zay=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='заявка';});
-    var isp=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='исполнено';});
+    var zay=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='заявка';})
+      .sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;});   // v34: свежее сверху
+    var isp=_sbLive.filter(function(r){return (r.place||'').trim()===region && (r.status||'').trim()==='исполнено';})
+      .sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;});
     var pending=0; zay.forEach(function(r){pending+=Number(r.usd||0);});
     function reqItem(r){return {id:r.id,action:(Number(r.usd||0)>0?'oldim':'berdim'),region:region,name:r.name,
       usd:Number(r.usd||0),rub:Math.abs(Number(r.rub_itog||0)),rate:r.rate,note:r.note||'',operator:r.operator||'',
@@ -3121,7 +3160,9 @@
     var deals=_sbLive.filter(function(r){return (r.place||'').trim()===region && Number(r.profit||0)!==0 && (r.status||'').trim()!=='отменён';})
       .sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;});
     document.getElementById(id).innerHTML=deals.map(function(r){
-      return '<div class="op-item" style="padding-left:24px"><div class="op-left"><div class="nm" style="font-size:12px">'+_mskDay(r.dt)+' · '+esc(r.name||'')+' · '+t('rate')+' '+String(r.rate||'').replace('.',',')+'</div></div><div class="op-amt gold" style="font-size:13px">'+fmt(r.profit)+' ₽</div></div>';
+      var usd=Math.abs(Number(r.usd||0)), rate=String(r.rate||'').replace('.',',');
+      var sub=usd? ('$'+fmt(usd)+(rate?' × '+rate:'')) : (t('rate')+' '+rate);
+      return '<div class="op-item" style="padding-left:24px"><div class="op-left"><div class="nm" style="font-size:12px">'+_mskDay(r.dt)+' · '+esc(r.name||'')+' · '+sub+'</div></div><div class="op-amt gold" style="font-size:13px">'+fmt(r.profit)+' ₽</div></div>';
     }).join('')||'<div class="mt" style="padding:6px 24px">—</div>';
   }
   function balLoad(){
@@ -3236,11 +3277,28 @@
       return apiCall('sbVerify',{},AUTH_TOKEN,true);  // Apps-сторона — свежий скан
     }).then(function(v){
       if(!v||!v.ok){ apFail(ap); return; }
+      // v34: ПОЛНАЯ сверка — операции И регионы (остаток, курс, прибыль, касса Москвы)
+      var probs=[];
       var diffRows=(v.rows||0)-_sbRows;
       var diffSum=Math.round((v.hakdor||0)-_sbHak);
-      var ok=(Math.abs(diffRows)<1 && Math.abs(diffSum)<1);
-      ap.style.color=ok?'var(--plus)':'var(--minus)';
-      ap.textContent=(ok?'✓ ':'⚠ ')+'строки '+diffRows+' · сумма '+fmt(diffSum);
+      if(Math.abs(diffRows)>=1) probs.push('строки: лист '+v.rows+' / база '+_sbRows);
+      if(Math.abs(diffSum)>=1) probs.push('хакдор: разница '+fmt(diffSum));
+      if(v.regions && _sbReg){
+        var sm={}; _sbReg.forEach(function(x){ sm[(x.region||'').trim()]=x; });
+        v.regions.forEach(function(a){
+          var s=sm[a.region]; if(!s) return;
+          if(Math.round(a.usd)!==Math.round(Number(s.usd||0))) probs.push(a.region+' $: лист '+fmt(a.usd)+' / база '+fmt(Number(s.usd||0)));
+          var av1=Math.round((a.avg||0)*100)/100, av2=Math.round((Number(s.avg||0))*100)/100;
+          if(av1!==av2) probs.push(a.region+' курс: '+av1+' / '+av2);
+          var sp=Math.round(Number(s.profit_total||0)+Number(s.profit_start||0));
+          if(Math.round(a.profit)!==sp) probs.push(a.region+' прибыль: лист '+fmt(a.profit)+' / база '+fmt(sp));
+          if(a.region==='Москва' && Math.round(a.moscow_cash)!==Math.round(Number(s.moscow_cash||0)))
+            probs.push('касса Москвы: лист '+fmt(a.moscow_cash)+' / база '+fmt(Number(s.moscow_cash||0)));
+        });
+      }
+      ap.style.whiteSpace='normal';
+      if(!probs.length){ ap.style.color='var(--plus)'; ap.textContent='✓ всё сходится (операции + регионы)'; }
+      else { ap.style.color='var(--minus)'; ap.textContent='⚠ расхождений '+probs.length+': '+probs.join(' · '); }
     }).catch(function(){ apFail(ap); });
   }
   function apFail(ap){ ap.textContent='Apps: нет ответа'; ap.style.color='var(--muted)'; }
@@ -3693,7 +3751,7 @@
 
     // v23: отчёт клиента из Supabase (архивы зеркалированы — вся история есть)
     if(SB_ON){
-      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id&order=dt.asc,id.asc').then(function(rows){
+      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id,note&order=dt.asc,id.asc').then(function(rows){
         if(g!==clGen || name!==clCurName) return;
         // v25: строки закрытия me_ ИГНОРИРУЕМ полностью — это снимок тех же
         // операций, а не отдельная сделка. Баланс = сумма ВСЕХ реальных
@@ -3712,15 +3770,18 @@
           real.forEach(function(r){ if((r.dt||'')<firstDt) opening+=Number(r.rub_itog||0); });
         }
         clOpening=opening;
-        clReportText=''; clReportPhone='';
         clClosing=closing;
         clRenderBalance(closing, shown.length);
-        clRenderOps(shown.map(function(r){var s=(r.dt||''), dm=_mskDay(r.dt);
+        var mapped=shown.map(function(r){var s=(r.dt||''), dm=_mskDay(r.dt);
           return { datetime:dm.slice(8,10)+'.'+dm.slice(5,7)+' '+_mskHM(r.dt),
             action:(r.action||'').trim(), region:(r.place||'').trim(),
             usd:Number(r.usd||0), rate:r.rate, rub:Math.abs(Number(r.rub_itog||0)), h:Number(r.rub_itog||0),
-            _dt:s };
-        }));
+            note:(r.note||''), _dt:s };
+        });
+        // v34: строим текст отчёта на клиенте (rows по возрастанию даты)
+        clReportText=sbClientReportText(name, opening, mapped);
+        clReportPhone=clKeyPhone();
+        clRenderOps(mapped);
       }).catch(function(){ if(g===clGen && !cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
       return;
     }
@@ -3788,6 +3849,48 @@
     apiCall('logReportSent',{name:clCurName, reportDay:d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()),
       period:per, lang:'uz', source:'Мижоз', text:clReportText},AUTH_TOKEN,true).catch(function(){});
     toast(t('reportSent'));
+  }
+  // v34: текст отчёта клиента строим на клиенте (раньше отдавал Apps Script res.text).
+  // rows — по возрастанию даты, поля как в маппинге SB: {datetime:'дд.мм чч:мм',action,region,usd,rate,h,note,_dt}
+  function sbClientReportText(name, opening, rows){
+    var T={title:'Ҳисобот',openLbl:'Давр бошидаги қолдиқ',closeLbl:'Жорий қолдиқ',
+           weOwe:'сизга қарзимиз',theyOwe:'қарзингиз',give:'Бердингиз',take:'Олдингиз',
+           transferTitle:'Ҳавола',startWord:'Бошланғич',noOps:'Ҳаракат йўқ'};
+    function fmtRub(n){return Math.abs(Math.round(n)).toLocaleString('ru-RU');}
+    function balPhrase(b){return fmtRub(b)+' ₽ ('+(b>=0?T.weOwe:T.theyOwe)+')';}
+    function ddmm(iso){var d=_mskDay(iso);return d?d.slice(8,10)+'.'+d.slice(5,7):'';}
+    function ddmmyyyy(iso){var d=_mskDay(iso);return d?d.slice(8,10)+'.'+d.slice(5,7)+'.'+d.slice(0,4):'';}
+    opening=Number(opening||0);
+    var closing=opening; rows.forEach(function(r){closing+=Number(r.h||0);});
+    var dateLine;
+    if(!rows.length){ var td=_todayMsk(); dateLine=td.slice(8,10)+'.'+td.slice(5,7)+'.'+td.slice(0,4); }
+    else{
+      var f=ddmmyyyy(rows[0]._dt), l=ddmmyyyy(rows[rows.length-1]._dt);
+      dateLine=(f===l)?f:(f.slice(0,5)+' — '+l);
+    }
+    var L=['📋 '+name+' — '+T.title,'📅 '+dateLine,'',T.openLbl+': '+balPhrase(opening),''];
+    if(!rows.length){ L.push(T.noOps); }
+    else rows.forEach(function(it){
+      var h=Number(it.h||0), sign=(h>=0)?'+':'−';
+      var head=ddmm(it._dt)+' · '+sign+fmtRub(Math.abs(h))+' ₽ · ';
+      var act=(it.action||'').trim();
+      if(act==='Перевод'){ L.push(head+(it.note?it.note:T.transferTitle)); }
+      else if(act==='Старт'){ L.push(head+T.startWord); }
+      else{
+        var word=(act==='Бердим')?T.take:T.give;
+        var tail=(it.region||'')+' '+word;
+        var usd=Number(it.usd||0);
+        if(Math.abs(usd)>0){
+          var c=cur(it.region);
+          tail+=' '+c+Math.abs(usd).toLocaleString('ru-RU');
+          if(c!=='₸' && it.rate && parseFloat(String(it.rate).replace(',','.'))>0) tail+=' ('+String(it.rate).replace('.',',')+')';
+        }
+        L.push(head+tail);
+      }
+    });
+    L.push('━━━━━━━━━━━━');
+    L.push(T.closeLbl+': '+balPhrase(closing));
+    return L.join('\n');
   }
   function clBuildReport(){
     if(!clReportText){ toast(t('loadFirst'),true); return; }
@@ -4051,7 +4154,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 33;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 34;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4157,11 +4260,17 @@
     // закрытый месяц лежит в архиве и не меняется НИКОГДА — в сеть не ходим вовсе
     if(c && c.source==='archive' && !_forceFresh) return;
 
-    // v23: ТЕКУЩИЙ месяц — из Supabase. Закрытый — с Apps Script (кэш навсегда).
+    // v23/v34: ТЕКУЩИЙ месяц — из live; ЗАКРЫТЫЙ — из архива Supabase (src=месяц).
     var curM=_todayMsk().slice(0,7);   // v28: месяц по МСК
     if(SB_ON && month===curM){
       sbFetchBase().then(function(){
         MO_DATA=sbComputeMonthly(place,month); cPut(ck,MO_DATA); moRender();
+      }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
+    if(SB_ON){   // прошлый месяц — архив
+      sbFetchMonth(month).then(function(rows){
+        MO_DATA=sbComputeMonthly(place,month,rows); MO_DATA.source='archive'; cPut(ck,MO_DATA); moRender();
       }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
       return;
     }
@@ -4239,11 +4348,17 @@
     // июнь. Признак закрытого — период вида m2026-07 раньше текущего месяца.
     if(c && !_forceFresh && pv.charAt(0)==='m' && pv.slice(1)<CUR_MONTH_()) return;
 
-    // v23: Supabase — если диапазон целиком в текущем месяце (данные есть в live).
-    // Дни, уходящие в архив, и закрытые месяцы — с Apps Script (там есть архивы).
+    // v23/v34: Supabase — текущий месяц из live; закрытый месяц целиком — из архива.
+    // Дни-диапазоны, уходящие в архив, — пока с Apps Script.
     var curMStart=CUR_MONTH_()+'-01';
     var fromK = (pv.charAt(0)==='m') ? (pv.slice(1)+'-01')
               : new Date(Date.now()-((parseInt(pv.slice(1),10)||10)-1)*864e5).toISOString().slice(0,10);
+    if(SB_ON && pv.charAt(0)==='m' && pv.slice(1)<CUR_MONTH_()){   // закрытый месяц — архив
+      sbFetchMonth(pv.slice(1)).then(function(rows){
+        var r=sbComputeTarih(place,period,rows); cPut(ck,r); thRender(r);
+      }).catch(function(){ if(!c) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
     if(SB_ON && fromK>=curMStart){
       sbFetchBase().then(function(){
         var r=sbComputeTarih(place,period); cPut(ck,r); thRender(r);

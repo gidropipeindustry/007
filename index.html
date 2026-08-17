@@ -1944,7 +1944,7 @@
     document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdLast=''; mExTouch=[];
     document.getElementById('mNameField').classList.remove('hidden'); document.getElementById('mRubField').classList.remove('hidden');
     document.getElementById('mUsdToggleField').classList.remove('hidden'); document.getElementById('mExchField').classList.add('hidden'); mCalcRate();
-    balEyeOff_('mBalEye','mBalPrev');
+    var _bp=document.getElementById('mBalPrev'); if(_bp)_bp.innerHTML='';   // v35.2: глаз оставляем включённым, чистим только показанный остаток
   }
   function mRefreshBalance(){apiCall('getMoscowBalance',{},AUTH_TOKEN).then(function(b){document.getElementById('mskRub').textContent=fmt(b.rub)+' ₽'; document.getElementById('mskUsd').textContent='$ '+fmt(b.usd);});}
   // фильтр ленты по выбранному дню: "сегодня" в datetime — только HH:mm (без точки)
@@ -2017,7 +2017,7 @@
     // Зеркало догонит через минуту, но своя запись видна СРАЗУ, а полная лента
     // (оператор 1 и все) не пропадает — мы её не стирали, только дополнили.
     if(_sbWriteScr()){
-      if(res && res.row) sbLivePrepend_(res.row, 'Москва');   // своя строка в ожидающие
+      if(res && res.row) sbLivePrepend_(res.row, 'Москва', res.id);   // своя строка в ожидающие (дедуп по id)
       _sbTs=0;                                         // заставить перечитать Supabase
       mOpen();                                         // fetch + merge ожидающих -> лента полная
       return;
@@ -2035,10 +2035,14 @@
   // лента не «моргала». Когда Supabase её подхватит — из ожидающих убираем.
   var _sbPending=[];
   function _sbKey(r){
+    // v35.2: если есть реальный id операции — ключ по нему (совпадёт с строкой из Supabase,
+    // даже если запись задним числом и даты не сходятся). Иначе — по составу до минуты.
+    var id=String(r.id||'');
+    if(id && id.indexOf('local_')!==0) return 'id:'+id;
     var d=String(r.dt||'').slice(0,16);   // до минуты
     return (r.name||'')+'|'+(r.place||'')+'|'+Math.round(Number(r.usd||0))+'|'+Math.round(Number(r.rub_itog||0))+'|'+d;
   }
-  function sbLivePrepend_(row, place){
+  function sbLivePrepend_(row, place, opId){
     // res.row: Москва {rub(E,знак),usd(знак)}; регион {usd(знак),rub=|H|}
     var now=new Date();
     // v28: полный UTC ISO — тот же формат, что у строки из Supabase.
@@ -2054,7 +2058,8 @@
     var sbrow={ name:row.name||'', place:pl, action:row.action||'',
       rub:(pl==='Москва'?Number(row.rub||0):0), usd:usd, rate:row.rate||'',
       rub_itog:ritog, profit:Number(row.profit||0), status:row.status||'актив',
-      executor:'', operator:row.operator||USER_NAME, note:row.note||'', dt:iso, id:'local_'+Date.now() };
+      executor:'', operator:row.operator||USER_NAME, note:row.note||'', dt:iso,
+      id:(opId||('local_'+Date.now())) };   // v35.2: реальный id → дедуп совпадёт с Supabase
     _sbPending.unshift({sbrow:sbrow, key:_sbKey(sbrow), ts:Date.now()});
     if(_sbLive) _sbMergePending();
   }
@@ -2228,8 +2233,12 @@
       if(!name){toast(t('pickClient'),true); return;}
       if(usd<=0){toast(t('enterUsd'),true); return;}
       if(rub<=0){toast(t('enterRub'),true); return;}
+      var _toWhom=id('ToWhom').value.trim(), _phone=id('Phone').value.trim(), _memo=id('Memo').value.trim();
+      // v35.2: собрать note как старый Apps Script (buildNote) — иначе в группу заявок
+      // уходит без «Кому/Тел/изох» (p_save_region берёт готовый payload.note).
+      var _np=[]; if(_toWhom)_np.push('Кому: '+_toWhom); if(_phone)_np.push('Тел: '+_phone); if(_memo)_np.push(_memo);
       var p={action:st.action,region:getRegionName(),name:name,usd:usd,rate:rateRaw,rub:rub,
-        toWhom:id('ToWhom').value.trim(),phone:id('Phone').value.trim(),memo:id('Memo').value.trim(),
+        toWhom:_toWhom,phone:_phone,memo:_memo,note:_np.join(' | '),
         opDate:(id('OpDate')?id('OpDate').value:'')||''};
 
       var showProfit=(USER_ROLE==='operator2'||USER_ROLE==='admin')&&st.action==='berdim';
@@ -2267,7 +2276,7 @@
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.last='';
       ['Name','Usd'+(pfx==='g'?'In':''),'Rate','Rub','ToWhom','Phone','Memo','OpDate'].forEach(function(s){var e=id(s); if(e)e.value='';});
       id('CalcBox').innerHTML=t('calcEmpty'); hint();
-      var eb=id('BalEye'); if(eb)eb.classList.remove('on'); var bp=id('BalPrev'); if(bp)bp.innerHTML='';
+      var bp=id('BalPrev'); if(bp)bp.innerHTML='';   // v35.2: глаз оставляем включённым, чистим только показанный остаток
     }
     // счётчик поколений запросов экрана: применяем только последний ответ
     // (гонка: поздний ответ старого периода/региона перетирал свежие данные)
@@ -2305,7 +2314,7 @@
       // v26: Supabase — свою строку в ожидающие, перечитать ленту начисто
       if(_sbWriteScr()){
         var reg=(pfx==='u')?'Узбекистан':(res.region||getRegionName());
-        if(res && res.row) sbLivePrepend_(res.row, reg);
+        if(res && res.row) sbLivePrepend_(res.row, reg, res.id);   // дедуп по реальному id
         _sbTs=0; reload();
         return;
       }
@@ -3375,11 +3384,39 @@
       dlPreload();                   // тексты всех клиентов дня — одним запросом
     }).catch(function(){ if(!c) document.getElementById('dlList').innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
   }
+  // v35.2: телефон клиента из локального DB (как в отчёте клиента)
+  function dbPhone_(name){ for(var i=0;i<DB.length;i++){ if(DB[i].name===name) return String(DB[i].phone||'').replace(/\D/g,''); } return ''; }
+  // v35.2: дневной отчёт клиента из Supabase (та же логика, что getDailyReports/buildClientReportText_,
+  // проверено тестом слово-в-слово). Входящий остаток — сумма ДО дня ВКЛЮЧАЯ строки закрытия me_;
+  // строки дня — операции этого дня без 'итог'. Текст строит sbClientReportText.
+  function sbDailyReport_(name, dayKey, lang){
+    var rows=_sbLive.filter(function(r){ return (r.name||'')===name && (r.status||'').trim()!=='отменён'; });
+    var opening=0, dayRows=[];
+    rows.forEach(function(r){
+      var dk=_mskDay(r.dt);
+      if(dk<dayKey){ opening+=Number(r.rub_itog||0); }          // до дня — вкл. me_/итог
+      else if(dk===dayKey){
+        if((r.status||'').trim()==='итог' || String(r.id||'').indexOf('me_')===0) return;
+        dayRows.push({ _dt:r.dt, datetime:'', action:(r.action||'').trim(), region:(r.place||'').trim(),
+          usd:Number(r.usd||0), rate:r.rate, h:Number(r.rub_itog||0), note:(r.note||'') });
+      }
+    });
+    dayRows.sort(function(a,b){ return (a._dt||'')<(b._dt||'')?-1:1; });   // по возрастанию
+    return { text:sbClientReportText(name, opening, dayRows, lang), phone:dbPhone_(name) };
+  }
   // v17: на сервере есть готовая getDailyReports — она строит отчёты ВСЕХ
   // клиентов дня за один скан листа. Фронт её не звал и дёргал getClientReport
   // на каждого отдельно: десять клиентов — десять походов подряд.
   function dlPreload(){
     if(!dlClients.length) return;
+    if(SB_ON){   // v35.2: тексты строим из Supabase, без Apps Script
+      sbFetchBase().then(function(){
+        var dk=dlDayKey();
+        dlClients.forEach(function(c){ dlCache[c.name]=sbDailyReport_(c.name, dk, dlLangVal); });
+        if(dlOpenName && dlCache[dlOpenName]) dlShowText(dlOpenName, dlCache[dlOpenName].text, dlCache[dlOpenName].phone);
+      }).catch(function(){});
+      return;
+    }
     apiCall('getDailyReports',{day:dlDayVal,lang:dlLangVal},AUTH_TOKEN,true).then(function(res){
       if(!res||!res.ok||!res.reports) return;
       for(var nm in res.reports){
@@ -3449,6 +3486,12 @@
     if(dlCache[name]){ dlShowText(name, dlCache[name].text, dlCache[name].phone); return; }
     el.innerHTML='<div class="loading">…</div>';
     var today=dlDayKey();
+    if(SB_ON){   // v35.2: дневной отчёт из Supabase
+      sbFetchBase().then(function(){
+        var r=sbDailyReport_(name, today, dlLangVal); dlCache[name]=r; dlShowText(name, r.text, r.phone);
+      }).catch(function(){ el.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+      return;
+    }
     apiCall('getClientReport',{name:name,dateFrom:today,dateTo:today,lang:dlLangVal},AUTH_TOKEN).then(function(res){
       if(!res||!res.ok){ el.innerHTML='<div class="empty">'+((res&&res.error)||t('err'))+'</div>'; return; }
       dlCache[name]={text:res.text, phone:res.phone||''};
@@ -3886,10 +3929,14 @@
   }
   // v34: текст отчёта клиента строим на клиенте (раньше отдавал Apps Script res.text).
   // rows — по возрастанию даты, поля как в маппинге SB: {datetime:'дд.мм чч:мм',action,region,usd,rate,h,note,_dt}
-  function sbClientReportText(name, opening, rows){
-    var T={title:'Ҳисобот',openLbl:'Давр бошидаги қолдиқ',closeLbl:'Жорий қолдиқ',
-           weOwe:'сизга қарзимиз',theyOwe:'қарзингиз',give:'Бердингиз',take:'Олдингиз',
-           transferTitle:'Ҳавола',startWord:'Бошланғич',noOps:'Ҳаракат йўқ'};
+  function sbClientReportText(name, opening, rows, lang){
+    var T=(lang==='ru')
+      ? {title:'Отчёт',openLbl:'Остаток на начало',closeLbl:'Текущий остаток',
+         weOwe:'мы должны',theyOwe:'вы должны',give:'Вы дали',take:'Вы взяли',
+         transferTitle:'Перевод',startWord:'Старт',noOps:'Движений нет'}
+      : {title:'Ҳисобот',openLbl:'Давр бошидаги қолдиқ',closeLbl:'Жорий қолдиқ',
+         weOwe:'сизга қарзимиз',theyOwe:'қарзингиз',give:'Бердингиз',take:'Олдингиз',
+         transferTitle:'Ҳавола',startWord:'Бошланғич',noOps:'Ҳаракат йўқ'};
     function fmtRub(n){return Math.abs(Math.round(n)).toLocaleString('ru-RU');}
     function balPhrase(b){return fmtRub(b)+' ₽ ('+(b>=0?T.weOwe:T.theyOwe)+')';}
     function ddmm(iso){var d=_mskDay(iso);return d?d.slice(8,10)+'.'+d.slice(5,7):'';}
@@ -4188,7 +4235,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35.1;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.2;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

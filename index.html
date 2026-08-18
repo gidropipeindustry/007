@@ -117,6 +117,10 @@
   .bal-eye.on{color:#fff; background:var(--accent); border-color:var(--accent);}
   .bal-prev{display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;}
   .bal-prev:empty{margin-top:0;}
+  .gh-chk{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:1.5px solid var(--line); color:transparent; font-size:14px; line-height:1; cursor:pointer; flex:0 0 auto; margin-left:10px; -webkit-tap-highlight-color:transparent;}
+  .gh-chk.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .op-item.gh-on{border:1.5px solid var(--accent); background:rgba(61,220,132,.08); border-radius:10px; margin:3px 0;}
+  .gh-badge{color:var(--accent); font-size:12px; margin-left:6px; white-space:nowrap;}
   .bal-pill{font-size:14px; font-weight:600; padding:4px 10px; border-radius:20px;}
   .bal-pill.plus{background:rgba(61,220,132,.15); color:var(--plus);}
   .bal-pill.minus{background:rgba(255,107,107,.15); color:var(--minus);}
@@ -1220,18 +1224,32 @@
     var eye=document.getElementById(eyeId); if(eye&&eye.classList.contains('on')) _loadClientBal_(inputId, prevId);
   }
   function balEyeOff_(eyeId, prevId){ var e=document.getElementById(eyeId); if(e)e.classList.remove('on'); var b=document.getElementById(prevId); if(b)b.innerHTML=''; }
+  function _balPaint_(box, b, lastDt){
+    b=Number(b||0); var cls=b>0?'plus':(b<0?'minus':''), sign=b>0?'+':(b<0?'−':'');
+    var d=lastDt?(_mskDay(lastDt).slice(8,10)+'.'+_mskDay(lastDt).slice(5,7)+' · '+_mskHM(lastDt)):'';
+    box.innerHTML='<span class="bal-pill '+cls+'">'+sign+fmt(Math.abs(b))+' ₽</span>'+(d?'<span class="bal-date">'+d+'</span>':'');
+  }
   function _loadClientBal_(inputId, prevId){
     var nm=(document.getElementById(inputId).value||'').trim();
     var box=document.getElementById(prevId); if(!box) return;
     if(!nm){ box.innerHTML='<span class="mt">введите имя</span>'; return; }
+    // v35.3: считаем из _sbLive локально — мгновенно, без сети, и сразу учитывает только что созданную заявку.
+    // Совпадает с RPC p_client_balance (sum rub_itog по src=live, статус ≠ отменён; дата — по не-me_ строкам).
+    if(SB_ON && _sbLive){
+      var bal=0, last='';
+      _sbLive.forEach(function(r){
+        if((r.name||'')!==nm || (r.status||'').trim()==='отменён') return;
+        bal+=Number(r.rub_itog||0);
+        if(String(r.id||'').indexOf('me_')!==0 && (r.dt||'')>last) last=r.dt;
+      });
+      _balPaint_(box, bal, last); return;
+    }
     box.innerHTML='<span class="mt">…</span>';
     var q=nm;   // защита от гонки: показываем только ответ по текущему имени
     sbRpc_('p_client_balance',{p_name:nm}).then(function(r){
       if((document.getElementById(inputId).value||'').trim()!==q) return;
       if(!r||r.balance===undefined||r.error){ box.innerHTML='<span class="mt">нет данных</span>'; return; }
-      var b=Number(r.balance||0), cls=b>0?'plus':(b<0?'minus':''), sign=b>0?'+':(b<0?'−':'');
-      var d=r.last_dt?(_mskDay(r.last_dt).slice(8,10)+'.'+_mskDay(r.last_dt).slice(5,7)+' · '+_mskHM(r.last_dt)):'';
-      box.innerHTML='<span class="bal-pill '+cls+'">'+sign+fmt(Math.abs(b))+' ₽</span>'+(d?'<span class="bal-date">'+d+'</span>':'');
+      _balPaint_(box, Number(r.balance||0), r.last_dt);
     }).catch(function(){ if((document.getElementById(inputId).value||'').trim()===q) box.innerHTML='<span class="mt">ошибка</span>'; });
   }
   // v33: вызов читающей RPC Supabase (возвращает JSON функции)
@@ -1897,7 +1915,7 @@
   }
   function mSubmit(){
     if(!mAction){toast(t('pickAction'),true); return;}
-    var p={action:mAction,note:document.getElementById('mNote').value.trim(),opDate:document.getElementById('mOpDate').value||''};
+    var p={action:mAction,note:document.getElementById('mNote').value.trim(),opDate:opDateTs_(document.getElementById('mOpDate').value)};
     if(mAction==='obmen'){
       var a=moneyVal('mExA'),b=moneyVal('mExB');
       if(a<=0||b<=0){toast(t('fillSums'),true); return;}
@@ -2042,6 +2060,8 @@
     var d=String(r.dt||'').slice(0,16);   // до минуты
     return (r.name||'')+'|'+(r.place||'')+'|'+Math.round(Number(r.usd||0))+'|'+Math.round(Number(r.rub_itog||0))+'|'+d;
   }
+  // v35.3: дата задним числом — слать с ТЕКУЩИМ временем (UTC), иначе кладётся полночь → 03:00 МСК.
+  function opDateTs_(v){ v=(v||'').trim(); return v ? (v+'T'+new Date().toISOString().slice(11,19)+'Z') : ''; }
   function sbLivePrepend_(row, place, opId){
     // res.row: Москва {rub(E,знак),usd(знак)}; регион {usd(знак),rub=|H|}
     var now=new Date();
@@ -2239,7 +2259,7 @@
       var _np=[]; if(_toWhom)_np.push('Кому: '+_toWhom); if(_phone)_np.push('Тел: '+_phone); if(_memo)_np.push(_memo);
       var p={action:st.action,region:getRegionName(),name:name,usd:usd,rate:rateRaw,rub:rub,
         toWhom:_toWhom,phone:_phone,memo:_memo,note:_np.join(' | '),
-        opDate:(id('OpDate')?id('OpDate').value:'')||''};
+        opDate:opDateTs_(id('OpDate')?id('OpDate').value:'')};
 
       var showProfit=(USER_ROLE==='operator2'||USER_ROLE==='admin')&&st.action==='berdim';
       var rows=[];
@@ -2789,7 +2809,7 @@
     if(!tOpId) tOpId='tr_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     askConfirm(t('transferQ',{f:from,t:to}), function(){
       var btn=document.getElementById('tSubmit'); btn.disabled=true; btn.textContent='…';
-      apiWrite('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:document.getElementById('tOpDate').value||'',opId:tOpId}},AUTH_TOKEN).then(function(res){
+      apiWrite('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:opDateTs_(document.getElementById('tOpDate').value),opId:tOpId}},AUTH_TOKEN).then(function(res){
         btn.disabled=false; btn.textContent=t('doTransfer');
         if(res.ok){
           if(!res.dup) showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽');
@@ -3070,12 +3090,27 @@
       });
     } else ghLoad();
   }
+  // v35.3: галочки «проверено» в общей истории — ТОЛЬКО админ, хранятся в Supabase (на всех устройствах).
+  var _ghChecked={};    // op_id -> 1
+  var _ghRows=[];       // последние отфильтрованные строки (для перерисовки без сети)
+  function ghChk_(id){ return (USER_ROLE==='admin')
+    ? '<span class="gh-chk'+(_ghChecked[id]?' on':'')+'" onclick="event.stopPropagation();ghToggleCheck(\''+String(id).replace(/'/g,"")+'\')">✓</span>' : ''; }
+  function ghToggleCheck(id){
+    if(USER_ROLE!=='admin') return;
+    var was=!!_ghChecked[id];
+    if(was) delete _ghChecked[id]; else _ghChecked[id]=1;   // оптимистично
+    ghRender();
+    sbRpc_('p_admin_check_toggle',{p_opid:id, token:AUTH_TOKEN}).then(function(r){
+      if(!r||!r.ok){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; ghRender(); toast((r&&r.error)||t('err'),true); }
+    }).catch(function(){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; ghRender(); });
+  }
   function ghLoad(){
     var box=document.getElementById('ghBox');
     if(!SB_ON){ box.innerHTML='<div class="empty">Общая история доступна из Supabase</div>'; return; }
-    sbFetchBase().then(function(){
+    Promise.all([ sbFetchBase(), (USER_ROLE==='admin'? sbRpc_('p_admin_checks',{token:AUTH_TOKEN}) : Promise.resolve([])) ]).then(function(res){
+      _ghChecked={}; var checks=res[1]; if(Array.isArray(checks)) checks.forEach(function(id){_ghChecked[id]=1;});
       var place=document.getElementById('ghPlace').value;
-      var rows=_sbLive.filter(function(r){
+      _ghRows=_sbLive.filter(function(r){
         if((r.status||'').trim()==='отменён') return false;
         if(String(r.id||'').indexOf('me_')===0) return false;
         if((r.place||'').trim()==='Москва') return false;   // общая история — только регионы
@@ -3083,30 +3118,34 @@
         if(place && place!=='(все регионы)' && (r.place||'').trim()!==place) return false;
         return true;
       });
-      // острова по дням + прибыль за день
-      var days={}; rows.forEach(function(r){var d=_mskDay(r.dt);(days[d]=days[d]||[]).push(r);});
-      var keys=Object.keys(days).sort().reverse();
-      var tod=_todayMsk(), yd=_ydMsk();
-      var h=keys.length?'':'<div class="empty">'+t('noOps2')+'</div>';
-      keys.forEach(function(d){
-        var list=days[d], dd=new Date(d+'T12:00:00');
-        var lbl=(d===tod?t('today'):d===yd?t('yesterday'):(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WDay(dd.getDay());
-        var prof=0; list.forEach(function(r){prof+=Number(r.profit||0);});
-        h+='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
-        h+=list.map(function(r){
-          var usd=Number(r.usd||0),col=usd<0?'minus':'plus';
-          var sum=(usd>0?'+':'−')+cur(r.place)+fmt(Math.abs(usd));
-          var m=[_mskHM(r.dt),(r.place||''),actName(r.action)];
-          if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
-          if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
-          if(r.executor)m.push('✅ '+r.executor);
-          var tap=(r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'';
-          return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div></div>';
-        }).join('');
-        h+='<div style="font-size:11px;color:var(--gold);text-align:right;padding:4px 4px 8px;border-bottom:1px dashed var(--line);margin-bottom:6px;">'+t('earnedDay')+': '+fmt(prof)+' ₽</div>';
-      });
-      box.innerHTML=h;
+      ghRender();
     }).catch(function(){ box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+  }
+  function ghRender(){
+    var box=document.getElementById('ghBox'); if(!box) return;
+    var days={}; _ghRows.forEach(function(r){var d=_mskDay(r.dt);(days[d]=days[d]||[]).push(r);});
+    var keys=Object.keys(days).sort().reverse();
+    var tod=_todayMsk(), yd=_ydMsk();
+    var h=keys.length?'':'<div class="empty">'+t('noOps2')+'</div>';
+    keys.forEach(function(d){
+      var list=days[d].slice().sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;}), dd=new Date(d+'T12:00:00');   // v35.3: свежее сверху, как в Узбекистане
+      var lbl=(d===tod?t('today'):d===yd?t('yesterday'):(d.slice(8,10)+'.'+d.slice(5,7)))+' · '+_WDay(dd.getDay());
+      var prof=0; list.forEach(function(r){prof+=Number(r.profit||0);});
+      h+='<div class="op-item" style="background:transparent;border:none;border-bottom:1px solid var(--line);padding:10px 2px 6px;"><div class="op-left"><div class="nm" style="font-size:13px;'+(d===tod?'color:var(--plus);':'')+'">'+lbl+'</div></div><div class="mt">'+list.length+' оп.</div></div>';
+      h+=list.map(function(r){
+        var usd=Number(r.usd||0),col=usd<0?'minus':'plus';
+        var sum=(usd>0?'+':'−')+cur(r.place)+fmt(Math.abs(usd));
+        var m=[_mskHM(r.dt),(r.place||''),actName(r.action)];
+        if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
+        if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
+        if(r.executor)m.push('✅ '+r.executor);
+        var tap=(r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'';
+        var on=_ghChecked[r.id], badge=on?'<span class="gh-badge">✓ проверено</span>':'';
+        return '<div class="op-item'+(on?' gh-on':'')+'"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+badge+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div>'+ghChk_(r.id)+'</div>';
+      }).join('');
+      h+='<div style="font-size:11px;color:var(--gold);text-align:right;padding:4px 4px 8px;border-bottom:1px dashed var(--line);margin-bottom:6px;">'+t('earnedDay')+': '+fmt(prof)+' ₽</div>';
+    });
+    box.innerHTML=h;
   }
   function ovLoad(force){
     if(OV_DATA) ovRender(OV_DATA);   // мгновенно из памяти/локального кэша
@@ -4235,7 +4274,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35.2;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.3;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

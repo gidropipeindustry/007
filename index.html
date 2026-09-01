@@ -119,6 +119,15 @@
   .bal-prev:empty{margin-top:0;}
   .gh-chk{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:1.5px solid var(--line); color:transparent; font-size:14px; line-height:1; cursor:pointer; flex:0 0 auto; margin-left:10px; -webkit-tap-highlight-color:transparent;}
   .gh-chk.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .dt-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .dt-chip{padding:7px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);
+    font-size:13px;font-weight:700;cursor:pointer;color:var(--txt);user-select:none;}
+  .dt-chip.on{border-color:var(--accent);color:var(--accent);}
+  .dt-chip.clr{color:var(--muted);}
+  .dt-time{width:112px;}
+  .ovp-h{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 2px 12px;}
+  .ovp-tot{display:flex;justify-content:space-between;padding:8px 0 8px 12px;border-top:1px solid var(--line);font-weight:700;font-size:13px;}
+  .ovp-sum{display:flex;justify-content:space-between;padding:10px 0 4px 12px;margin-top:6px;border-top:2px solid var(--line);font-weight:800;font-size:15px;}
   .op-item.gh-on{border:1.5px solid var(--accent); background:rgba(61,220,132,.08); border-radius:10px; margin:3px 0;}
   .gh-badge{color:var(--accent); font-size:12px; margin-left:6px; white-space:nowrap;}
   .bal-pill{font-size:14px; font-weight:600; padding:4px 10px; border-radius:20px;}
@@ -668,8 +677,25 @@
 <div class="confirm-wrap" id="summaryWrap"><div class="confirm-card"><div class="sum-title" data-i18n="confirmDeal">Сделкани тасдиқланг</div><div class="sum-rows" id="summaryRows"></div><div class="btns"><button class="yes" id="summaryYes" data-i18n="yes">Ҳа</button><button class="no" id="summaryNo" data-i18n="no">Йўқ</button></div></div></div>
 <div class="confirm-wrap" id="editWrap"><div class="confirm-card" style="text-align:left;"><div class="sum-title" data-i18n="editTitle" style="text-align:center;">Правка</div>
   <div class="field"><label data-i18n="lblClient">Клиент</label><div class="ac-wrap"><input type="text" id="edName" autocomplete="off" oninput="acInput('edName','edAc')"><div class="ac-list" id="edAc"></div></div></div>
-  <div class="field"><label data-i18n="lblNote">Комментарий</label><input type="text" id="edNote"></div>
+  <div class="field"><label data-i18n="edToWhom">Кому</label><input type="text" id="edToWhom"></div>
+  <div class="field"><label data-i18n="edPhone">Телефон</label><input type="text" id="edPhone" inputmode="tel"></div>
+  <div class="field"><label data-i18n="edMemo">Комментарий</label><input type="text" id="edNote"></div>
   <div class="btns"><button class="yes" id="edSave" data-i18n="save"></button><button class="no" id="edCancel" data-i18n="no"></button></div></div></div>
+<!-- v35.4: КАРТОЧКА ОПЕРАЦИИ. Открывается тапом по строке из любого места —
+     лента, общая история, отчёт клиента. Искать операцию в меню правок больше не нужно. -->
+<div class="confirm-wrap" id="opWrap"><div class="confirm-card" style="text-align:left;min-width:280px;">
+  <div class="sum-title" id="opTitle" style="text-align:center;"></div>
+  <div id="opAmt" style="font-size:26px;font-weight:800;text-align:center;margin:-6px 0 14px;"></div>
+  <div id="opBody" style="border-top:1px solid var(--line);padding-top:10px;"></div>
+  <div id="opBtns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;"></div>
+</div></div>
+<!-- v35.4: смена даты — календарь и время вместо ручного ввода строкой -->
+<div class="confirm-wrap" id="dtWrap"><div class="confirm-card" style="text-align:left;min-width:260px;">
+  <div class="sum-title" id="dtTitle" style="text-align:center;"></div>
+  <div class="field"><label data-i18n="dtPick">Дата</label><input type="date" id="dtDate"></div>
+  <div class="field"><label data-i18n="dtTime">Время</label><input type="time" id="dtTime" value="23:55"></div>
+  <div class="btns" style="margin-top:8px;"><button class="yes" id="dtSave" data-i18n="save"></button><button class="no" id="dtCancel" data-i18n="no"></button></div>
+</div></div>
 <div class="confirm-wrap" id="qbWrap"><div class="confirm-card">
   <div class="sum-title" data-i18n="qbTitle">Остаток клиента</div>
   <div id="qbName" style="font-size:15px;font-weight:600;margin-top:8px;"></div>
@@ -698,6 +724,17 @@
   var LANG=localStorage.getItem('kassa_lang')||'ru';
   var I18N={
   ru:{
+    // v35.4
+    ovpProfit:'Прибыль по регионам', ovpProfitAll:'Прибыль всего', ovpSpend:'Расходы',
+    ovpSpendAll:'Расходы всего', ovpNet:'ЧИСТАЯ ПРИБЫЛЬ', ovpNoPlace:'Общие',
+    ovProfitNetSub:'за вычетом расходов', ovKarzNoRash:'расход исключён',
+    clOld:'цифры старые',
+    opCard:'Операция', opEdit:'Правка', opDate:'Дата', opCancelBtn:'Отмена', opClient:'Клиент',
+    opOperator:'Оператор', opStatus:'Статус', opNote:'Комментарий', opExecutor:'Выполнил',
+    dtToday:'Сегодня', dtYest:'Вчера', dtPick:'Дата', dtTime:'Время', dtClear:'Сбросить',
+    edToWhom:'Кому', edPhone:'Телефон', edMemo:'Комментарий',
+    wqSending:'отправляется', wqQueue:'В очереди', wqFail:'Не отправилось', wqRetry:'Повторить',
+    checkedW:'проверено',
     yes:'Да', no:'Нет', save:'Сохранить', saved:'Сохранено', err:'Ошибка', connLost:'Нет связи',
     slowNet:'Связь медленная',
     connBroke:'Связь прервалась — проверьте историю перед повтором',
@@ -803,6 +840,17 @@
     uzLang:'Ўзбекча', ruLang:'Русский', updBar:'Новая версия (v{v})', updBtn:'Обновить'
   },
   uz:{
+    // v35.4
+    ovpProfit:'Ҳудудлар бўйича фойда', ovpProfitAll:'Жами фойда', ovpSpend:'Харажатлар',
+    ovpSpendAll:'Жами харажат', ovpNet:'СОФ ФОЙДА', ovpNoPlace:'Умумий',
+    ovProfitNetSub:'харажат чиқарилган', ovKarzNoRash:'харажат чиқарилди',
+    clOld:'рақамлар эски',
+    opCard:'Амал', opEdit:'Тўғрилаш', opDate:'Сана', opCancelBtn:'Бекор', opClient:'Мижоз',
+    opOperator:'Оператор', opStatus:'Ҳолат', opNote:'Изоҳ', opExecutor:'Бажарди',
+    dtToday:'Бугун', dtYest:'Кеча', dtPick:'Сана', dtTime:'Вақт', dtClear:'Тозалаш',
+    edToWhom:'Кимга', edPhone:'Телефон', edMemo:'Изоҳ',
+    wqSending:'юборилмоқда', wqQueue:'Навбатда', wqFail:'Юборилмади', wqRetry:'Қайта',
+    checkedW:'текширилди',
     yes:'Ҳа', no:'Йўқ', save:'Сақлаш', saved:'Сақланди', err:'Хато', connLost:'Алоқа узилди',
     slowNet:'Алоқа секин',
     connBroke:'Алоқа узилди — такрорлашдан олдин тарихни текширинг',
@@ -933,13 +981,16 @@
     if(_reloadWait){ _reloadWait=false; toast(t('refreshed')); }
   }
   // один сетевой вызов, без повторов
-  function apiOnce_(action,args,token){
+  function apiOnce_(action,args,token,signal){
     // v31: боевые действия записи -> прямо в Supabase (Postgres), если включён флаг.
     // Всё остальное (чтение) идёт как раньше. Флаг по умолчанию выключен.
+    // v35.4: signal — чтобы фоновая очередь могла оборвать зависший запрос по таймауту.
     if(typeof WRITE_TO_SB!=='undefined' && WRITE_TO_SB &&
-       typeof SB_WRITE_MAP!=='undefined' && SB_WRITE_MAP[action]) return sbRpcWrite_(action,args,token);
-    return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:action,token:token||'',args:args||{}})}).then(function(r){return r.json();});
+       typeof SB_WRITE_MAP!=='undefined' && SB_WRITE_MAP[action]) return sbRpcWrite_(action,args,token,signal);
+    var o={method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:action,token:token||'',args:args||{}})};
+    if(signal) o.signal=signal;
+    return fetch(API_URL,o).then(function(r){return r.json();});
   }
   // v18: АВТОМАТИЧЕСКИЙ ПОВТОР ДЛЯ ЛЮБОГО ЗАПРОСА.
   // Apps Script отвечает не сразу, а перенаправлением на другой домен — два
@@ -1209,7 +1260,7 @@
     executeAllRequests:{fn:'p_execute_all_requests', body:function(a,t){return {p_region:a.region,token:t};}},
     cancelOperation:   {fn:'p_cancel_operation', body:function(a,t){return {p_opid:a.opId,p_force:(a.force!==undefined?a.force:true),token:t};}},
     editOperation:     {fn:'p_edit_operation',   body:function(a,t){return {p_opid:a.opId,fields:a.fields,token:t};}},
-    changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,token:t};}}
+    changeOperationDate:{fn:'p_change_op_date',  body:function(a,t){return {p_opid:a.opId,p_newdate:a.newDate,p_newtime:(a.newTime||''),token:t};}}
   };
   // v35: предпросмотр остатка клиента — иконка-глаз ТОГГЛ рядом с именем.
   // Нажат (.on) → показывает баланс и сам обновляется при смене клиента; не нажат → пусто.
@@ -1258,11 +1309,13 @@
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},
       body:JSON.stringify(body||{})}).then(function(r){return r.json();});
   }
-  function sbRpcWrite_(action,args,token){
+  function sbRpcWrite_(action,args,token,signal){
     var m=SB_WRITE_MAP[action];
-    return fetch(SB_URL+'/rest/v1/rpc/'+m.fn,{method:'POST',
+    var o={method:'POST',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify(m.body(args,token))})
+      body:JSON.stringify(m.body(args,token))};
+    if(signal) o.signal=signal;
+    return fetch(SB_URL+'/rest/v1/rpc/'+m.fn,o)
       .then(function(r){return r.json();})
       .then(function(j){ if(j&&j.ok===undefined&&(j.message||j.code)) return {ok:false,error:(j.message||'ошибка RPC')}; return j; });
   }
@@ -1383,11 +1436,23 @@
   // ТОЧНАЯ копия getOverview -> форма для ovRender
   function sbComputeOverview(){
     var ops=_sbLive,reg=_sbReg,regCost={},mbRub=0,mbUsd=0,clientBal={};
+    var rashPlace={}, rashTotal=0;   // v35.4: расходы по местам и всего (суммы отрицательные)
     ops.forEach(function(r){
       if(r.status==='отменён')return; var pl=(r.place||'').trim(),u=Number(r.usd||0),fr=_sbFactRub(r),pf=Number(r.profit||0);
       if(pl){if(regCost[pl]===undefined)regCost[pl]=0;if(u>0)regCost[pl]+=fr+pf;else if(u<0)regCost[pl]+=pf-fr;}
       if(pl==='Москва'){mbRub+=Number(r.rub||0);mbUsd+=u;}
-      var nm=(r.name||'').trim();if(nm&&nm!=='Остаток'&&nm!=='Обмен')clientBal[nm]=(clientBal[nm]||0)+Number(r.rub_itog||0);
+      var nm=(r.name||'').trim();
+      // v35.4: РАСХОД — не долг. Имя, начинающееся на «Расход», уходит из
+      // должников/кредиторов и вычитается из прибыли. Актив и обязательство
+      // уменьшаются на одну и ту же сумму, поэтому фарқ остаётся 0.
+      if(nm.indexOf('Расход')===0){
+        var _rk=pl||'—';
+        if(rashPlace[_rk]===undefined)rashPlace[_rk]=0;
+        rashPlace[_rk]+=Number(r.rub_itog||0);
+        rashTotal+=Number(r.rub_itog||0);
+        return;
+      }
+      if(nm&&nm!=='Остаток'&&nm!=='Обмен')clientBal[nm]=(clientBal[nm]||0)+Number(r.rub_itog||0);
     });
     var hakdor=0,karzdor=0;for(var cn in clientBal){var cb=clientBal[cn];if(cb>0)hakdor+=cb;else if(cb<0)karzdor+=cb;}karzdor=Math.abs(karzdor);
     var mAvg=0;reg.forEach(function(rg){if((rg.region||'').trim()==='Москва')mAvg=Number(rg.avg||0);});
@@ -1396,9 +1461,13 @@
     reg.forEach(function(rg){var rnm=(rg.region||'').trim();if(!rnm)return;var usd=Number(rg.usd||0),avg=Number(rg.avg||0),p=Number(rg.profit_total||0)+Number(rg.profit_start||0);
       if(rnm!=='Москва'){var rub=(regCost[rnm]!==undefined)?regCost[rnm]:Math.round(usd*avg);if(usd===0&&rub!==0){p-=rub;rub=0;}regRub+=rub;regions.push({name:rnm,rub:rub,usd:usd,avg:avg,profit:p});}
       profit+=p;});
+    var profitGross=profit;
+    profit=profit+rashTotal;                       // rashTotal <= 0 -> чистая прибыль
     var act=mTot+regRub+karzdor,liab=hakdor+profit,farq=act-liab;
     return {moscow:{total:mTot,usd:mbUsd,avg:mAvg,rubCash:mbRub},regions:regions,
-      karzdor:karzdor,hakdor:hakdor,profitTotal:profit,activeTotal:act,liabTotal:liab,farq:farq,ok:true};
+      karzdor:karzdor,hakdor:hakdor,profitTotal:profit,profitGross:profitGross,
+      rashTotal:rashTotal,rashPlace:rashPlace,
+      activeTotal:act,liabTotal:liab,farq:farq,ok:true};
   }
   // farq из Apps Script — для сравнения в шапке (лёгкий запрос getOverview)
   var _sbAppsFarq=null;
@@ -1455,7 +1524,10 @@
     if(r.executor)m.push('✅ '+r.executor);
     if(r.operator)m.push(r.operator);                 // v33: кто создал операцию
     var nm=(r.name||'');
-    var tap=(nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'';
+    // v35.4: админу тап открывает карточку операции (правка/дата/отмена из любого
+    // места), оператору — как раньше, карточку клиента.
+    var tap=(USER_ROLE==='admin'&&r.id)?(' style="cursor:pointer" onclick="opCardById(\''+String(r.id).replace(/'/g,"")+'\')"')
+           :((nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'');
     var noteLine=(r.note&&String(r.note).trim())     // v33: комментарий серой строкой снизу
       ?'<div class="mt" style="opacity:.8;margin-top:1px">'+esc(String(r.note))+'</div>':'';
     return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div>'+noteLine+'</div><div class="op-amt '+col+'">'+sum+'</div></div>';
@@ -1915,7 +1987,8 @@
   }
   function mSubmit(){
     if(!mAction){toast(t('pickAction'),true); return;}
-    var p={action:mAction,note:document.getElementById('mNote').value.trim(),opDate:opDateTs_(document.getElementById('mOpDate').value)};
+    var p={action:mAction,note:document.getElementById('mNote').value.trim(),
+           opDate:opDateTs_(document.getElementById('mOpDate').value),opTime:opTime_('mOpDate')};
     if(mAction==='obmen'){
       var a=moneyVal('mExA'),b=moneyVal('mExB');
       if(a<=0||b<=0){toast(t('fillSums'),true); return;}
@@ -1938,17 +2011,10 @@
     if(key===mLastKey&&now-mLastTime<4000){toast(t('writingWait'),true); return;}
     mLastKey=key; mLastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
     var btn=document.getElementById('mSubmit'); btn.disabled=true; btn.textContent=t('writing');
-    apiWrite('saveMoscow',{payload:p},AUTH_TOKEN).then(function(res){
-      btn.disabled=false; btn.textContent=t('save');
-      if(res.ok){ if(!res.dup) mShowOk(p); mReset(); mAfterSave(res); }
-      else { toast(res.error||t('err'),true); mOpen(); }   // не записалось — вернуть честную ленту
-    }).catch(function(){
-      btn.disabled=false; btn.textContent=t('save');
-      // v22: не «нет связи», а проверка и прямой ответ — записалось или нет
-      writeVerdict({opId:p.opId, action:'saveMoscow', args:{payload:p},
-                    det:esc(p.name||''), after:function(r){ mReset(); mAfterSave(r); }});
-      mOpen();
-    });
+    // v35.4: не ждём сеть. Запись уходит в фоновую очередь, кнопка свободна сразу.
+    btn.disabled=false; btn.textContent=t('save');
+    wqAdd('saveMoscow',{payload:p},p.name||'');
+    mShowOk(p); mReset();
   }
   function mShowOk(p){
     var label=p.action==='oldim'?'Олдим ＋':p.action==='berdim'?'Бердим －':'Обмен',det='';
@@ -1959,6 +2025,7 @@
   function mReset(){
     document.querySelectorAll('#scr-moscow .act-btn').forEach(function(b){b.classList.remove('sel');}); mAction=null;
     ['mName','mRub','mUsd','mUsdRate','mUsdRub','mNote','mExA','mExB','mRate','mOpDate'].forEach(function(id){var e=document.getElementById(id); if(e)e.value='';});
+    dtSync_('mOpDate');
     document.getElementById('mUsdSwitch').checked=false; document.getElementById('mUsdField').classList.add('hidden'); mUsdLast=''; mExTouch=[];
     document.getElementById('mNameField').classList.remove('hidden'); document.getElementById('mRubField').classList.remove('hidden');
     document.getElementById('mUsdToggleField').classList.remove('hidden'); document.getElementById('mExchField').classList.add('hidden'); mCalcRate();
@@ -2259,7 +2326,7 @@
       var _np=[]; if(_toWhom)_np.push('Кому: '+_toWhom); if(_phone)_np.push('Тел: '+_phone); if(_memo)_np.push(_memo);
       var p={action:st.action,region:getRegionName(),name:name,usd:usd,rate:rateRaw,rub:rub,
         toWhom:_toWhom,phone:_phone,memo:_memo,note:_np.join(' | '),
-        opDate:opDateTs_(id('OpDate')?id('OpDate').value:'')};
+        opDate:opDateTs_(id('OpDate')?id('OpDate').value:''), opTime:opTime_(pfx+'OpDate')};
 
       var showProfit=(USER_ROLE==='operator2'||USER_ROLE==='admin')&&st.action==='berdim';
       var rows=[];
@@ -2277,17 +2344,11 @@
       if(key===st.lastKey&&now-st.lastTime<4000){toast(t('createWait'),true); return;}
       st.lastKey=key; st.lastTime=now; p.opId='op_'+now+'_'+Math.random().toString(36).slice(2,8);
       var btn=id('Submit'); btn.disabled=true; btn.textContent=t('creating');
-      apiWrite('saveRegionRequest',{payload:p},AUTH_TOKEN).then(function(res){
-        btn.disabled=false; btn.textContent=t('createDeal');
-        if(res.ok){ if(!res.dup) showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽'); reset(); afterSave(res); }
-        else { toast(res.error||t('err'),true); reload(); }
-      }).catch(function(){
-        btn.disabled=false; btn.textContent=t('createDeal');
-        // v22: вердикт вместо «нет связи» — см. writeVerdict
-        writeVerdict({opId:p.opId, action:'saveRegionRequest', args:{payload:p},
-                      det:esc(p.name||''), after:function(r){ reset(); afterSave(r); }});
-        reload();
-      });
+      // v35.4: не ждём сеть — очередь отправит сама, с повтором по тому же opId.
+      btn.disabled=false; btn.textContent=t('createDeal');
+      wqAdd('saveRegionRequest',{payload:p},p.name||'');
+      showOk(t('dealCreated'),esc(p.name)+' · '+cur(p.region)+fmt(p.usd)+' · '+fmt(p.rub)+' ₽');
+      reset();
     }
     // v20: предпоказ строки убран — см. пояснение у mAfterSave.
     function reload(){ if(pfx==='u') uOpen(); else gOpen(); }
@@ -2295,6 +2356,7 @@
     function reset(){
       var p=document.getElementById('scr-'+(pfx==='u'?'uzb':'region')); p.querySelectorAll('.act-btn').forEach(function(b){b.classList.remove('sel');}); st.action=null; st.last='';
       ['Name','Usd'+(pfx==='g'?'In':''),'Rate','Rub','ToWhom','Phone','Memo','OpDate'].forEach(function(s){var e=id(s); if(e)e.value='';});
+      dtSync_(pfx+'OpDate');
       id('CalcBox').innerHTML=t('calcEmpty'); hint();
       var bp=id('BalPrev'); if(bp)bp.innerHTML='';   // v35.2: глаз оставляем включённым, чистим только показанный остаток
     }
@@ -2809,23 +2871,16 @@
     if(!tOpId) tOpId='tr_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     askConfirm(t('transferQ',{f:from,t:to}), function(){
       var btn=document.getElementById('tSubmit'); btn.disabled=true; btn.textContent='…';
-      apiWrite('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:opDateTs_(document.getElementById('tOpDate').value),opId:tOpId}},AUTH_TOKEN).then(function(res){
-        btn.disabled=false; btn.textContent=t('doTransfer');
-        if(res.ok){
-          if(!res.dup) showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽');
-          else toast(t('alreadySaved'));
-          tOpId=''; scrDrop_(); tClear(); tRefreshFeed();
-        }
-        else toast(res.error||t('err'),true);
-      }).catch(function(){
-        btn.disabled=false; btn.textContent=t('doTransfer');
-        toast(t('connBroke'),true);
-        tRefreshFeed();          // сразу показываем историю: прошло или нет
-      });
+      // v35.4: перевод тоже уходит фоном
+      btn.disabled=false; btn.textContent=t('doTransfer');
+      wqAdd('saveTransfer',{payload:{from:from,to:to,sum:sum,memo:document.getElementById('tNote').value.trim(),opDate:opDateTs_(document.getElementById('tOpDate').value),opTime:opTime_('tOpDate'),opId:tOpId}}, from);
+      showOk(t('transferDone'),esc(from)+' → '+esc(to)+' · '+fmt(sum)+' ₽');
+      tOpId=''; scrDrop_(); tClear();
     });
   }
   function tClear(){
     ['tFrom','tTo','tSum','tNote','tOpDate'].forEach(function(id){var e=document.getElementById(id); if(e) e.value='';});
+    dtSync_('tOpDate');
     tOpId='';
   }
 
@@ -2847,6 +2902,13 @@
       return;
     }
     apiCall('getRegions',{},AUTH_TOKEN).then(fill);
+  }
+  // v35.4: правка и отмена теперь доступны из любого экрана, поэтому список
+  // правок перезагружаем только если он реально открыт; иначе просто обновляем
+  // текущий экран.
+  function aRefresh_(){
+    var cur=document.querySelector('.tab.sel');
+    if(cur && cur.getAttribute('data-s')==='admin') aLoadCancel(); else _rtBump();
   }
   function aLoadCancel(){
     aInitRegionFilter();
@@ -2903,15 +2965,19 @@
       doCancel(id, false, btn);
     });
   }
-  function aChangeDate(id){
-    var d=prompt(t('newDateQ'),'');
-    if(d===null) return;
-    d=String(d).trim();
+  function aChangeDate(id){ var r=opFind_(id); dtOpen(id, r?r.dt:''); }
+  // сохранение из модалки даты
+  function dtDoSave(){
+    var id=_dtId; if(!id) return;
+    var d=document.getElementById('dtDate').value||'';
+    var tm=document.getElementById('dtTime').value||'23:55';
     if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){toast(t('dateFmt'),true); return;}
-    apiCall('changeOperationDate',{opId:id,newDate:d},AUTH_TOKEN).then(function(res){
-      if(res.ok){showOk(t('dateChanged'),d+' 23:55'); aLoadCancel();}
-      else toast(res.error||t('err'),true);
-    }).catch(function(){toast(t('connLost'),true);});
+    var b=document.getElementById('dtSave'); b.disabled=true;
+    apiCall('changeOperationDate',{opId:id,newDate:d,newTime:tm},AUTH_TOKEN).then(function(res){
+      b.disabled=false;
+      if(res&&res.ok){ dtClose(); showOk(t('dateChanged'),d+' '+tm); scrDrop_(); aRefresh_(); }
+      else toast((res&&res.error)||t('err'),true);
+    }).catch(function(){ b.disabled=false; toast(t('connLost'),true); });
   }
   var meBoundaryOk='';
   function mePreview(){
@@ -3099,16 +3165,224 @@
     if(USER_ROLE!=='admin') return;
     var was=!!_ghChecked[id];
     if(was) delete _ghChecked[id]; else _ghChecked[id]=1;   // оптимистично
-    ghRender();
+    chkRepaint_();
     sbRpc_('p_admin_check_toggle',{p_opid:id, token:AUTH_TOKEN}).then(function(r){
-      if(!r||!r.ok){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; ghRender(); toast((r&&r.error)||t('err'),true); }
-    }).catch(function(){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; ghRender(); });
+      if(!r||!r.ok){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; chkRepaint_(); toast((r&&r.error)||t('err'),true); }
+    }).catch(function(){ if(was)_ghChecked[id]=1; else delete _ghChecked[id]; chkRepaint_(); });
+  }
+  // v35.4: галочки нужны теперь в трёх местах — общая история, список клиентов
+  // и отчёт клиента. Список отмеченных грузим ОДИН раз на вход и держим в памяти:
+  // новых запросов от галочек не появляется вовсе. Таблица admin_checks в
+  // реалтайме не участвует, поэтому лавины событий они поднять не могут.
+  var _ghLoaded=false, _clLastOps=null;
+  function checksLoad(force){
+    if(USER_ROLE!=='admin' || !SB_ON) return Promise.resolve();
+    if(_ghLoaded && !force) return Promise.resolve();
+    return sbRpc_('p_admin_checks',{token:AUTH_TOKEN}).then(function(checks){
+      _ghChecked={}; if(Array.isArray(checks)) checks.forEach(function(id){_ghChecked[id]=1;});
+      _ghLoaded=true;
+    }).catch(function(){});
+  }
+  function ghKeyCl_(name){ return 'cl:'+String(name||'').trim(); }   // ключ галочки клиента
+
+  /* ================= v35.4: КАРТОЧКА ОПЕРАЦИИ =================
+     Тап по строке в ленте, в общей истории или в отчёте клиента поднимает
+     операцию целиком. Оттуда — правка, смена даты и отмена, не заходя в меню
+     правок и не разыскивая строку фильтрами. Кнопки видит только админ. */
+  var _opCur=null;
+  function opFind_(id){
+    id=String(id||''); if(!id) return null;
+    if(_sbLive) for(var i=0;i<_sbLive.length;i++){ if(String(_sbLive[i].id)===id) return _sbLive[i]; }
+    if(_clLastOps) for(var j=0;j<_clLastOps.length;j++){ var o=_clLastOps[j];
+      if(String(o.id)===id) return {id:o.id,name:clCurName,place:o.region||'',action:o.action||'',
+        usd:Number(o.usd||0),rate:o.rate,rub_itog:Number(o.h||0),rub:0,profit:0,
+        status:o.status||'',operator:o.operator||'',note:o.note||'',dt:o.dtIso||'',executor:''}; }
+    return null;
+  }
+  function opCardById(id){ var r=opFind_(id); if(r) opCard(r); }
+  function opCard(r){
+    _opCur=r;
+    var usd=Number(r.usd||0), ri=Number(r.rub_itog||0), e=Number(r.rub||0);
+    var main=usd?((usd>0?'+':'−')+cur(r.place)+fmt(Math.abs(usd)))
+                :(((ri||e)<0?'−':'+')+fmt(Math.abs(ri||e))+' ₽');
+    document.getElementById('opTitle').textContent=(r.name||'—');
+    var a=document.getElementById('opAmt');
+    a.textContent=main; a.style.color=((usd||ri||e)<0?'var(--minus)':'var(--plus)');
+    function L(k,v){ return '<div style="display:flex;justify-content:space-between;gap:14px;padding:6px 0;font-size:13px;">'+
+      '<span style="color:var(--muted);flex:0 0 auto">'+esc(k)+'</span><span style="text-align:right;overflow-wrap:anywhere">'+v+'</span></div>'; }
+    var day=_mskDay(r.dt);
+    var b=L(t('day'), day.slice(8,10)+'.'+day.slice(5,7)+'.'+day.slice(0,4)+' · '+_mskHM(r.dt));
+    b+=L(t('action'), esc(actName(r.action))+(r.place?' · '+esc(r.place):''));
+    if(usd) b+=L(t('dollar'), cur(r.place)+fmt(Math.abs(usd))+(r.rate?' · '+t('rate')+' '+String(r.rate).replace('.',','):''));
+    if(ri)  b+=L(t('ruble'), fmt(Math.abs(ri))+' ₽');
+    if(Number(r.profit)&&(USER_ROLE==='admin'||USER_ROLE==='operator2')) b+=L(t('profitWord'), fmt(Number(r.profit))+' ₽');
+    if(r.note)     b+=L(t('opNote'), esc(String(r.note)));
+    if(r.operator) b+=L(t('opOperator'), esc(r.operator));
+    if(r.executor) b+=L(t('opExecutor'), esc(r.executor));
+    if(r.status)   b+=L(t('opStatus'), esc(r.status));
+    b+=L('ID','<span style="font-size:10px;color:var(--muted)">'+esc(String(r.id||''))+'</span>');
+    document.getElementById('opBody').innerHTML=b;
+    function btn(cls,txt,fn){ return '<button class="'+cls+'" style="flex:1 1 44%;padding:13px 8px;font-size:14px;" onclick="'+fn+'">'+txt+'</button>'; }
+    var h='', nm=(r.name||'').trim();
+    if(nm&&nm!=='Обмен'&&nm!=='Остаток') h+=btn('no','👤 '+t('opClient'),'opGoClient()');
+    if(USER_ROLE==='admin'){
+      h+=btn('no','✎ '+t('opEdit'),'opDoEdit()');
+      h+=btn('no','📅 '+t('opDate'),'opDoDate()');
+      h+=btn('no','✕ '+t('opCancelBtn'),'opDoCancel()');
+    }
+    h+=btn('yes',t('close'),'opClose()');
+    document.getElementById('opBtns').innerHTML=h;
+    document.getElementById('opWrap').classList.add('show');
+  }
+  function opClose(){ document.getElementById('opWrap').classList.remove('show'); }
+  function opGoClient(){ var r=_opCur; opClose(); if(r&&r.name) openClient(r.name,'reports'); }
+  function opDoEdit(){ var r=_opCur; opClose(); if(r) aFieldEdit({id:r.id,name:r.name,note:r.note}); }
+  function opDoCancel(){
+    var r=_opCur; opClose(); if(!r) return;
+    askConfirm(t('cancelQ'), function(){ doCancel(r.id, false, null); });
+  }
+  function opDoDate(){ var r=_opCur; opClose(); if(r) dtOpen(r.id, r.dt); }
+
+  /* ---- разбор и сборка комментария: Кому | Тел | изох (денег не касается) ---- */
+  function opNoteParse_(note){
+    var out={to:'',ph:'',memo:''};
+    String(note||'').split('|').forEach(function(part){
+      var v=String(part).trim(); if(!v) return;
+      var m=v.match(/^(Кому|Кимга)\s*:\s*(.*)$/i);
+      if(m){ out.to=m[2].trim(); return; }
+      var q=v.match(/^(Тел|Телефон)\s*:\s*(.*)$/i);
+      if(q){ out.ph=q[2].trim(); return; }
+      out.memo=out.memo?(out.memo+' | '+v):v;
+    });
+    return out;
+  }
+  function opNoteBuild_(to,ph,memo){
+    var a=[];
+    if(to)   a.push('Кому: '+to);
+    if(ph)   a.push('Тел: '+ph);
+    if(memo) a.push(memo);
+    return a.join(' | ');
+  }
+
+  /* ---- смена даты: календарь и время вместо ручного ввода строкой ---- */
+  var _dtId='';
+  function dtOpen(id, iso){
+    _dtId=id;
+    document.getElementById('dtTitle').textContent=t('opDate');
+    document.getElementById('dtDate').value=iso?_mskDay(iso):_todayMsk();
+    document.getElementById('dtTime').value=iso?_mskHM(iso):'23:55';
+    document.getElementById('dtWrap').classList.add('show');
+  }
+  function dtClose(){ document.getElementById('dtWrap').classList.remove('show'); _dtId=''; }
+
+  /* ================= v35.4: ДАТА В ДВА ТАПА =================
+     Раньше задним числом приходилось лезть в календарь и выбирать день вручную.
+     Теперь под полем стоят кнопки: Бугун · Кеча · 📅 Сана, а как только выбран
+     прошлый день — появляется поле времени (по умолчанию 23:55, как и было). */
+  function dtChipsInit(){
+    ['mOpDate','uOpDate','gOpDate','tOpDate'].forEach(function(id){
+      var inp=document.getElementById(id);
+      if(!inp || document.getElementById(id+'Chips')) return;
+      var w=document.createElement('div'); w.className='dt-chips'; w.id=id+'Chips';
+      w.innerHTML='<span class="dt-chip" onclick="dtSet_(\'' +id+ '\',0)">'+t('dtToday')+'</span>'+
+                  '<span class="dt-chip" onclick="dtSet_(\'' +id+ '\',1)">'+t('dtYest')+'</span>'+
+                  '<span class="dt-chip" onclick="dtPick_(\'' +id+ '\')">📅 '+t('dtPick')+'</span>'+
+                  '<input type="time" class="dt-time" id="'+id+'T" value="23:55" style="display:none">';
+      inp.parentNode.appendChild(w);
+      inp.addEventListener('change',function(){ dtSync_(id); });
+      dtSync_(id);
+    });
+  }
+  function dtSet_(id,n){
+    var inp=document.getElementById(id); if(!inp) return;
+    inp.value=(n===0)?'':_ydMsk();          // «сегодня» = пусто, как и раньше
+    dtSync_(id);
+  }
+  function dtPick_(id){
+    var inp=document.getElementById(id); if(!inp) return;
+    try{ if(inp.showPicker) inp.showPicker(); else { inp.focus(); inp.click(); } }catch(e){ try{inp.focus();}catch(e2){} }
+  }
+  function dtSync_(id){
+    var inp=document.getElementById(id), w=document.getElementById(id+'Chips');
+    if(!inp||!w) return;
+    var tm=document.getElementById(id+'T');
+    var v=inp.value||'', back=!!v && v<_todayMsk();
+    if(tm) tm.style.display=back?'':'none';
+    var ch=w.querySelectorAll('.dt-chip');
+    if(ch[0]) ch[0].className='dt-chip'+(!v?' on':'');
+    if(ch[1]) ch[1].className='dt-chip'+((v&&v===_ydMsk())?' on':'');
+    if(ch[2]) ch[2].className='dt-chip'+((v&&v!==_ydMsk())?' on':'');
+  }
+  function opTime_(id){
+    var e=document.getElementById(id+'T');
+    return (e && e.style.display!=='none' && e.value) ? e.value : '';
+  }
+
+
+  /* ================= v35.4: ФОНОВАЯ ОТПРАВКА ЗАПИСИ =================
+     Раньше кнопка стояла заблокированной, пока сеть не ответит. При подвисшем
+     мобильном интернете это выглядело как зависание на полминуты, а партнёр в
+     это время диктует следующую операцию. Теперь запись уходит в очередь:
+     кнопка свободна сразу, отправка идёт фоном с таймаутом 8 секунд и повтором
+     ТЕМ ЖЕ opId — база на знакомый opId отвечает «уже записано», второй строки
+     не будет. Очередь лежит в памяти телефона и переживает перезапуск. */
+  var WQ=[]; try{ WQ=JSON.parse(localStorage.getItem('k_wq')||'[]')||[]; }catch(e){ WQ=[]; }
+  var _wqBusy=false;
+  function wqSave_(){ try{ localStorage.setItem('k_wq',JSON.stringify(WQ)); }catch(e){} }
+  function wqAdd(action,args,who){
+    WQ.push({action:action,args:args,who:who||'',ts:Date.now(),tries:0});
+    wqSave_(); wqPaint_(); wqKick_();
+  }
+  function wqKick_(){ if(_wqBusy||!WQ.length) return; _wqBusy=true; wqStep_(); }
+  function wqOnce_(it){
+    return new Promise(function(resolve,reject){
+      var ctl=null; try{ ctl=new AbortController(); }catch(e){}
+      var done=false;
+      var to=setTimeout(function(){ if(done)return; done=true; try{ ctl&&ctl.abort(); }catch(e){} reject(new Error('timeout')); },8000);
+      apiOnce_(it.action,it.args,AUTH_TOKEN,ctl?ctl.signal:null)
+        .then(function(r){ if(done)return; done=true; clearTimeout(to); resolve(r); })
+        .catch(function(e){ if(done)return; done=true; clearTimeout(to); reject(e); });
+    });
+  }
+  function wqStep_(){
+    if(!WQ.length){ _wqBusy=false; wqPaint_(); return; }
+    var it=WQ[0];
+    wqOnce_(it).then(function(res){
+      if(res&&res.error==='Сессия недействительна'){ logout(); return; }
+      WQ.shift(); wqSave_(); wqPaint_();
+      if(res&&(res.ok||res.dup)){ scrDrop_(it.who||''); _rtBump(); }
+      else toast((res&&res.error)||t('err'),true);
+      setTimeout(wqStep_,60);
+    }).catch(function(){
+      it.tries=(it.tries||0)+1; wqSave_(); wqPaint_();
+      setTimeout(wqStep_, Math.min(30000, 1200*it.tries));
+    });
+  }
+  function wqPaint_(){
+    var el=document.getElementById('wqBar');
+    if(!WQ.length){ if(el) el.style.display='none'; return; }
+    if(!el){
+      el=document.createElement('div'); el.id='wqBar';
+      el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);'+
+        'z-index:250;background:var(--card2);border:1px solid var(--gold);color:var(--gold);'+
+        'border-radius:14px;padding:8px 14px;font-size:12px;font-weight:700;box-shadow:0 8px 26px rgba(0,0,0,.55);cursor:pointer';
+      el.onclick=function(){ wqKick_(); };
+      document.body.appendChild(el);
+    }
+    var slow=WQ[0]&&WQ[0].tries>=2;
+    el.style.display='block';
+    el.textContent=(slow?'⚠ '+t('wqFail')+' · '+t('wqRetry'):'⏳ '+t('wqQueue'))+' · '+WQ.length;
+  }
+
+  function chkRepaint_(){
+    try{ if(document.getElementById('ghBox') && _ghRows && _ghRows.length) ghRender(); }catch(e){}
+    try{ if(BAL_DATA && BAL_DATA.length) balRender(); }catch(e){}
+    try{ if(_clLastOps) clRenderOps(_clLastOps); }catch(e){}
   }
   function ghLoad(){
     var box=document.getElementById('ghBox');
     if(!SB_ON){ box.innerHTML='<div class="empty">Общая история доступна из Supabase</div>'; return; }
-    Promise.all([ sbFetchBase(), (USER_ROLE==='admin'? sbRpc_('p_admin_checks',{token:AUTH_TOKEN}) : Promise.resolve([])) ]).then(function(res){
-      _ghChecked={}; var checks=res[1]; if(Array.isArray(checks)) checks.forEach(function(id){_ghChecked[id]=1;});
+    Promise.all([ sbFetchBase(), checksLoad(true) ]).then(function(res){
       var place=document.getElementById('ghPlace').value;
       _ghRows=_sbLive.filter(function(r){
         if((r.status||'').trim()==='отменён') return false;
@@ -3139,7 +3413,8 @@
         if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
         if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
         if(r.executor)m.push('✅ '+r.executor);
-        var tap=(r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'';
+        var tap=(USER_ROLE==='admin'&&r.id)?(' style="cursor:pointer" onclick="opCardById(\''+String(r.id).replace(/'/g,"")+'\')"')
+               :((r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'');
         var on=_ghChecked[r.id], badge=on?'<span class="gh-badge">✓ проверено</span>':'';
         return '<div class="op-item'+(on?' gh-on':'')+'"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+badge+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div>'+ghChk_(r.id)+'</div>';
       }).join('');
@@ -3188,7 +3463,7 @@
       h+=line(t('ovBal')+' '+r.name, r.rub, cur(r.name)+fmt(r.usd)+' · '+t('avgRate')+' '+rate2(r.avg),'plus',"ovGo('"+r.name.replace(/'/g,"\\'")+"')",true);
     });
     // карздор — тап раскрывает список должников
-    h+=line(t('ovKarz'), d.karzdor, t('ovKarzSub'), 'plus',"ovList('karz')",true);
+    h+=line(t('ovKarz'), d.karzdor, t('ovKarzSub')+(Math.abs(d.rashTotal||0)>=1?' · '+t('ovKarzNoRash'):''), 'plus',"ovList('karz')",true);
     h+='<div id="ov-karz" style="display:none"></div>';
     h+='<div class="op-item" style="border-top:2px solid var(--line);margin-top:4px;"><div class="op-left"><div class="nm" style="font-weight:800;">'+t('ovTotalA')+'</div></div><div class="op-amt" style="font-weight:800;">'+fmt(d.activeTotal)+' ₽</div></div>';
     h+='</div>';
@@ -3197,7 +3472,7 @@
     h+=line(t('ovHak'), d.hakdor, t('ovHakSub'), 'minus',"ovList('hak')",true);
     h+='<div id="ov-hak" style="display:none"></div>';
     // прибыль всего — тап раскрывает по регионам
-    h+=line(t('ovProfit'), d.profitTotal, t('ovProfitTap'), 'gold',"ovProfit()",true);
+    h+=line(t('ovProfit'), d.profitTotal, (Math.abs(d.rashTotal||0)>=1? t('ovProfitNetSub')+' · ':'')+t('ovProfitTap'), 'gold',"ovProfit()",true);
     h+='<div id="ov-profit" style="display:none"></div>';
     h+='<div class="op-item" style="border-top:2px solid var(--line);margin-top:4px;"><div class="op-left"><div class="nm" style="font-weight:800;">'+t('ovTotal')+'</div></div><div class="op-amt" style="font-weight:800;">'+fmt(d.liabTotal)+' ₽</div></div>';
     h+='</div>';
@@ -3220,21 +3495,55 @@
   function ovList(kind){
     if(!ovToggle_('ov-'+kind)) return;
     // список должников/кредиторов из BAL_DATA (реальные клиенты)
-    var arr=BAL_DATA.filter(function(x){ return !x.pseudo && (kind==='hak'?x.balance>0:x.balance<0); })
+    var arr=BAL_DATA.filter(function(x){ return !x.pseudo && String(x.name||'').indexOf('Расход')!==0
+                                                && (kind==='hak'?x.balance>0:x.balance<0); })
       .sort(function(a,b){return Math.abs(b.balance)-Math.abs(a.balance);});
     document.getElementById('ov-'+kind).innerHTML=arr.map(function(x){
       return '<div class="op-item" style="padding-left:12px;cursor:pointer" onclick="quickBal(\''+esc(x.name).replace(/'/g,"\\'")+'\',\'reports\')"><div class="op-left"><div class="nm" style="font-size:13px">'+esc(x.name)+'</div></div><div class="op-amt '+(x.balance<0?'minus':'plus')+'">'+fmt(Math.abs(x.balance))+' ₽</div></div>';
     }).join('')||'<div class="mt" style="padding:6px 12px">—</div>';
   }
+  // v35.4: раскрытие прибыли — сперва заработок по регионам, следом харажатлар
+  // по местам, внизу СОФ ФОЙДА. Расход берётся из поля place самой операции,
+  // а не из имени клиента: «Расход» в Москве и в Узбекистане разойдутся верно.
   function ovProfit(){
     if(!ovToggle_('ov-profit')) return;
     if(!OV_LAST){ return; }
+    var gross=(OV_LAST.profitGross!==undefined)?OV_LAST.profitGross:OV_LAST.profitTotal;
     var rows=OV_LAST.regions.filter(function(x){return x.profit!==0;}).concat(
-      OV_LAST.moscow?[{name:'Москва',profit:(OV_LAST.profitTotal - OV_LAST.regions.reduce(function(s,x){return s+x.profit;},0))}]:[])
+      OV_LAST.moscow?[{name:'Москва',profit:(gross - OV_LAST.regions.reduce(function(s,x){return s+x.profit;},0))}]:[])
       .filter(function(x){return x.profit!==0;}).sort(function(a,b){return Math.abs(b.profit)-Math.abs(a.profit);});
-    document.getElementById('ov-profit').innerHTML=rows.map(function(x){
+    var h='<div class="ovp-h">'+t('ovpProfit')+'</div>';
+    h+=rows.map(function(x){
       return '<div class="op-item" style="padding-left:12px;cursor:pointer" onclick="ovProfitDeals(\''+x.name.replace(/'/g,"\\'")+'\')"><div class="op-left"><div class="nm" style="font-size:13px">'+esc(x.name)+' <span style="color:var(--muted)">›</span></div></div><div class="op-amt gold">'+fmt(x.profit)+' ₽</div></div><div id="ovpd-'+esc(x.name)+'" style="display:none"></div>';
     }).join('');
+    h+='<div class="ovp-tot"><span>'+t('ovpProfitAll')+'</span><span class="gold">'+fmt(gross)+' ₽</span></div>';
+    var rp=OV_LAST.rashPlace||{}, keys=Object.keys(rp).filter(function(k){return Math.abs(rp[k])>=1;})
+      .sort(function(a,b){return Math.abs(rp[b])-Math.abs(rp[a]);});
+    if(keys.length){
+      h+='<div class="ovp-h">'+t('ovpSpend')+'</div>';
+      h+=keys.map(function(k){
+        return '<div class="op-item" style="padding-left:12px;cursor:pointer" onclick="ovRashDeals(\''+String(k).replace(/'/g,"\\'")+'\')"><div class="op-left"><div class="nm" style="font-size:13px">'+esc(k==='—'?t('ovpNoPlace'):k)+' <span style="color:var(--muted)">›</span></div></div><div class="op-amt minus">'+fmt(rp[k])+' ₽</div></div><div id="ovrd-'+esc(k)+'" style="display:none"></div>';
+      }).join('');
+      h+='<div class="ovp-tot"><span>'+t('ovpSpendAll')+'</span><span class="minus">'+fmt(OV_LAST.rashTotal||0)+' ₽</span></div>';
+    }
+    h+='<div class="ovp-sum"><span>'+t('ovpNet')+'</span><span class="gold">'+fmt(OV_LAST.profitTotal)+' ₽</span></div>';
+    document.getElementById('ov-profit').innerHTML=h;
+  }
+  // строки расхода одного места
+  function ovRashDeals(place){
+    var id='ovrd-'+place; if(!ovToggle_(id)) return;
+    var box=document.getElementById(id); if(!box) return;
+    if(!SB_ON||!_sbLive){ box.innerHTML='<div class="mt" style="padding:6px 24px">только из Supabase</div>'; return; }
+    var want=(place==='—')?'':place;
+    var deals=_sbLive.filter(function(r){
+      return String(r.name||'').indexOf('Расход')===0
+          && (r.place||'').trim()===want && (r.status||'').trim()!=='отменён'
+          && Math.abs(Number(r.rub_itog||0))>=1;
+    }).sort(function(a,b){return (a.dt||'')<(b.dt||'')?1:-1;});
+    box.innerHTML=deals.map(function(r){
+      var nt=String(r.note||'').trim();
+      return '<div class="op-item" style="padding-left:24px"><div class="op-left"><div class="nm" style="font-size:12px">'+_mskDay(r.dt)+(nt?' · '+esc(nt):'')+'</div></div><div class="op-amt minus" style="font-size:13px">'+fmt(Number(r.rub_itog||0))+' ₽</div></div>';
+    }).join('')||'<div class="mt" style="padding:6px 24px">—</div>';
   }
   function ovProfitDeals(region){
     var id='ovpd-'+region; if(!ovToggle_(id)) return;
@@ -3261,7 +3570,7 @@
 
     // v23: чтение из SUPABASE. Рубильник SB_ON=false — возврат на Apps Script.
     if(SB_ON){
-      Promise.all([sbFetchBase(),sbFetchMeta()]).then(function(){
+      Promise.all([sbFetchBase(),sbFetchMeta(),checksLoad()]).then(function(){
         var r=sbComputeBalance();
         // v23: счётчик и дата последней сделки — из полной истории
         if(_sbMeta){ r.items.forEach(function(x){ if(x.pseudo)return; var m=_sbMeta[x.name];
@@ -3690,7 +3999,10 @@
       var clickAttr=' style="'+stl+'"'+(clickable?(' onclick="openClient(\''+esc(it.name).replace(/'/g,"\\'")+'\',\'reports\')"'):'');
       var age=balAge_(it);
       var quiet=(!it.pseudo && age>=14 && age<9999)?(' · '+t('balQuiet')+' '+age):'';
-      h+='<div class="op-item"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+quiet+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div></div>';
+      // v35.4: галочка «остаток сверил» — ключ cl:Имя, та же таблица admin_checks
+      var _ck=ghKeyCl_(it.name), _on=(USER_ROLE==='admin'&&_ghChecked[_ck]);
+      var _bd=_on?'<span class="gh-badge">✓ '+t('checkedW')+'</span>':'';
+      h+='<div class="op-item'+(_on?' gh-on':'')+'"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+_bd+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+quiet+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div>'+(it.pseudo?'':ghChk_(_ck))+'</div>';
     });
     box.innerHTML=h;
   }
@@ -3867,7 +4179,8 @@
 
     // v23: отчёт клиента из Supabase (архивы зеркалированы — вся история есть)
     if(SB_ON){
-      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id,note&order=dt.asc,id.asc').then(function(rows){
+      checksLoad();
+      sbGetAll('operations?name=eq.'+encodeURIComponent(name)+'&select=dt,action,place,rub,usd,rate,rub_itog,profit,status,id,note,operator&order=dt.asc,id.asc').then(function(rows){
         if(g!==clGen || name!==clCurName) return;
         // v25: строки закрытия me_ ИГНОРИРУЕМ полностью — это снимок тех же
         // операций, а не отдельная сделка. Баланс = сумма ВСЕХ реальных
@@ -3889,7 +4202,8 @@
         clClosing=closing;
         clRenderBalance(closing, shown.length);
         var mapped=shown.map(function(r){var s=(r.dt||''), dm=_mskDay(r.dt);
-          return { datetime:dm.slice(8,10)+'.'+dm.slice(5,7)+' '+_mskHM(r.dt),
+          return { id:r.id, status:r.status, operator:r.operator, dtIso:r.dt,
+            datetime:dm.slice(8,10)+'.'+dm.slice(5,7)+' '+_mskHM(r.dt),
             action:(r.action||'').trim(), region:(r.place||'').trim(),
             usd:Number(r.usd||0), rate:r.rate, rub:Math.abs(Number(r.rub_itog||0)), h:Number(r.rub_itog||0),
             note:(r.note||''), _dt:s };
@@ -3898,7 +4212,18 @@
         clReportText=sbClientReportText(name, opening, mapped);
         clReportPhone=clKeyPhone();
         clRenderOps(mapped);
-      }).catch(function(){ if(g===clGen && !cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>'; });
+        // v35.4: СОХРАНИТЬ В КЭШ. Раньше эта запись стояла ниже ветки Supabase и
+        // до неё никогда не доходило: свежий отчёт нигде не оставался, а на экран
+        // сперва выводился снимок, сделанный ещё версией на Apps Script, и он не
+        // обновлялся никогда. Отсюда «показывает старые данные».
+        var _pk={ok:true,rev:'sb',ops:mapped,text:clReportText,phone:clReportPhone,
+                 closing:closing,opening:opening,ts:Date.now()};
+        CL_CACHE[key]=_pk; cPut('cl_'+key,_pk);
+      }).catch(function(){
+        if(g!==clGen) return;
+        if(!cached) box.innerHTML='<div class="empty">'+t('connLost')+'</div>';
+        else toast(t('connLost')+' · '+t('clOld'),true);   // v35.4: честно сказать, что цифры старые
+      });
       return;
     }
 
@@ -3921,6 +4246,7 @@
   }
   var clOpening=0;
   function clRenderOps(ops){
+    _clLastOps=ops;                                   // v35.4: для перерисовки галочек без сети
     var box=document.getElementById('clOpsList');
     if(!ops.length){ box.innerHTML='<div class="empty">'+t('noDeals')+'</div>'; return; }
     // нарастающий остаток: opening + сумма H по порядку (ops идут по возрастанию даты)
@@ -3950,7 +4276,11 @@
       var rb=runBal[idx];
       var rbCls=rb>0?'plus':(rb<0?'minus':'');
       var noteLine=it.note?'<div class="mt" style="color:var(--muted);">'+esc(it.note)+'</div>':'';
-      h+='<div class="op-item" style="cursor:pointer;flex-wrap:wrap;" onclick="clToggleBal(this)"><div class="op-left"><div class="nm">'+title+'</div><div class="mt">'+it.datetime+'</div>'+noteLine+'</div><div class="op-amt '+cls+'">'+amtMain+(amtSub?'<span class="sub">'+amtSub+'</span>':'')+'</div>'+
+      // v35.4: галочка «проверено» у каждой строки отчёта + карточка операции по тапу (админ)
+      var _on=(USER_ROLE==='admin'&&it.id&&_ghChecked[it.id]);
+      var _tapC=(USER_ROLE==='admin'&&it.id)?(' onclick="opCardById(\''+String(it.id).replace(/'/g,"")+'\')"')
+                                            :' onclick="clToggleBal(this)"';
+      h+='<div class="op-item'+(_on?' gh-on':'')+'" style="cursor:pointer;flex-wrap:wrap;"'+_tapC+'><div class="op-left"><div class="nm">'+title+(_on?'<span class="gh-badge">✓ '+t('checkedW')+'</span>':'')+'</div><div class="mt">'+it.datetime+'</div>'+noteLine+'</div><div class="op-amt '+cls+'">'+amtMain+(amtSub?'<span class="sub">'+amtSub+'</span>':'')+'</div>'+(it.id?ghChk_(it.id):'')+
          '<div class="cl-runbal hidden" style="flex-basis:100%;font-size:12px;color:var(--gold);padding-top:6px;">'+t('balAfter')+': <b class="'+rbCls+'" style="color:inherit;">'+(rb>0?'+':rb<0?'−':'')+fmt(Math.abs(rb))+' ₽</b></div></div>';
     });
     box.innerHTML=h;
@@ -4195,19 +4525,28 @@
   function aFieldEdit(it){
     edCurId=it.id;
     document.getElementById('edName').value=it.name||'';
-    document.getElementById('edNote').value=it.note||'';
+    // v35.4: комментарий разбираем на «Кому / Телефон / изох» — править по-человечески.
+    // Деньги это не трогает: на сервер по-прежнему уходит одно поле note.
+    var _n=opNoteParse_(it.note||'');
+    document.getElementById('edToWhom').value=_n.to;
+    document.getElementById('edPhone').value=_n.ph;
+    document.getElementById('edNote').value=_n.memo;
     document.getElementById('editWrap').classList.add('show');
   }
   document.getElementById('edCancel').onclick=function(){document.getElementById('editWrap').classList.remove('show'); edCurId='';};
+  document.getElementById('dtCancel').onclick=dtClose;
+  document.getElementById('dtSave').onclick=dtDoSave;
   document.getElementById('edSave').onclick=function(){
     if(!edCurId) return;
     var nm=document.getElementById('edName').value.trim();
-    var nt=document.getElementById('edNote').value.trim();
+    var nt=opNoteBuild_(document.getElementById('edToWhom').value.trim(),
+                        document.getElementById('edPhone').value.trim(),
+                        document.getElementById('edNote').value.trim());
     if(!nm){toast(t('pickClient'),true); return;}
     var b=this; b.disabled=true;
     apiCall('editOperation',{opId:edCurId,fields:{name:nm,note:nt}},AUTH_TOKEN).then(function(res){
       b.disabled=false;
-      if(res.ok){document.getElementById('editWrap').classList.remove('show'); edCurId=''; showOk(t('editSaved'),esc(nm)); scrDrop_(); aLoadCancel();}
+      if(res.ok){document.getElementById('editWrap').classList.remove('show'); edCurId=''; showOk(t('editSaved'),esc(nm)); scrDrop_(); aRefresh_();}
       else toast(res.error||t('err'),true);
     }).catch(function(){b.disabled=false; toast(t('connLost'),true);});
   };
@@ -4242,7 +4581,7 @@
   function doCancel(id, force, btn){
     if(btn){ btn.disabled=true; btn.textContent='…'; }
     apiCall('cancelOperation',{opId:id,force:force},AUTH_TOKEN).then(function(res){
-      if(res.ok){ showOk(t('cancelled'),''); scrDrop_(); aLoadCancel(); return; }
+      if(res.ok){ showOk(t('cancelled'),''); scrDrop_(); aRefresh_(); return; }
       if(res.needConfirm){
         if(btn){ btn.disabled=false; btn.textContent='✕'; }
         askConfirm(t('execConfirm',{e:res.executor||'?',t:res.time||''}), function(){
@@ -4274,7 +4613,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35.3;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.4;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4654,6 +4993,9 @@
   buildTabs();
   sbEnsureUI();   // v23: кнопка «источник данных» — только admin
   _syncWriteMode();   // v33: сверить центральный режим записи (админ мог переключить)
+  dtChipsInit();      // v35.4: кнопки Бугун/Кеча/Сана и поле времени
+  checksLoad();       // v35.4: список галочек — один раз на вход
+  wqPaint_(); wqKick_();   // v35.4: дослать то, что осталось с прошлого запуска
 
   // v26: АВТООПРОС — смотрящий видит чужие записи без нажатий. Раз в 15 сек,
   // только если экран открыт и это Supabase-экран. Лёгкий запрос (~300 мс).
@@ -4675,6 +5017,17 @@
 
   // v32: РЕАЛТАЙМ — чужие записи видны мгновенно (вебсокет шлёт только изменение).
   // Если библиотека/сокет не поднялся — работает автоопрос выше (страховка).
+  // v35.4: ПАУЗА НА РЕАЛТАЙМ. Одна массовая правка в базе (пересборка FIFO
+  // переписывала profit у всех строк) слала СОТНИ событий подряд, и каждое
+  // требовало «перезагрузи всё». Телефон захлёбывался в собственных запросах,
+  // а запись, отправленная в этот момент, стояла в очереди по полминуты.
+  // Теперь сколько бы событий ни пришло — обновление одно и не чаще 1 раза в 2 сек.
+  var _rtLast=0,_rtTimer=null;
+  function _rtBump(){
+    if(_rtTimer) return;
+    var wait=Math.max(80, 2000-(Date.now()-_rtLast));
+    _rtTimer=setTimeout(function(){ _rtTimer=null; _rtLast=Date.now(); _rtRefresh(); }, wait);
+  }
   function _rtRefresh(){
     if(document.visibilityState!=='visible') return;
     _sbTs=0;
@@ -4688,7 +5041,7 @@
       if(!window.supabase || !window.supabase.createClient) return;   // библиотека не загрузилась — ок, есть опрос
       var _rt=window.supabase.createClient(SB_URL, SB_KEY);
       _rt.channel('ops-live')
-        .on('postgres_changes', {event:'*', schema:'public', table:'operations'}, function(){ _rtRefresh(); })
+        .on('postgres_changes', {event:'*', schema:'public', table:'operations'}, function(){ _rtBump(); })
         .subscribe();
     }catch(e){}
   })();

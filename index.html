@@ -546,6 +546,19 @@
         <div id="meResult" style="display:none; margin-top:12px; font-size:12px; line-height:1.45; white-space:pre-wrap; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:12px; max-height:320px; overflow:auto;"></div>
         <button class="submit" id="meCloseBtn" style="display:none; margin-top:12px; background:#c0392b;" onclick="meClose()">⚠️ ЗАКРЫТЬ МЕСЯЦ (необратимо)</button>
       </div>
+      <!-- v35.5: РАСПРЕДЕЛЕНИЕ ПРИБЫЛИ. Считает на телефоне из уже загруженных
+           живых строк — ни одного лишнего запроса. Создаёт обычные переводы
+           с постоянными номерами: второе нажатие база отобьёт как дубль. -->
+      <div class="card">
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">💰 Распределение прибыли: из прибыли месяца вычитается расход того же месяца, половина остатка идёт в кассу, вторая половина делится между инвесторами по их балансам. Сперва «Посчитать» — кнопка распределения появится только когда всё сойдётся.</div>
+        <div class="field"><label>Граница месяца (включительно)</label><input type="date" id="dsDate"></div>
+        <div class="field"><label>Половина — кому</label><input type="text" id="dsJabo" autocomplete="off"></div>
+        <div class="field"><label>Инвестор 1</label><input type="text" id="dsInv1" autocomplete="off"></div>
+        <div class="field"><label>Инвестор 2 (пусто — только один)</label><input type="text" id="dsInv2" autocomplete="off"></div>
+        <button class="submit" id="dsCalcBtn" onclick="dsCalc()">Посчитать</button>
+        <div id="dsResult" style="display:none; margin-top:12px;"></div>
+        <button class="submit" id="dsRunBtn" style="display:none; margin-top:12px; background:#b8860b;" onclick="dsRun()">💰 РАСПРЕДЕЛИТЬ</button>
+      </div>
     </div>
   </div>
 
@@ -729,7 +742,7 @@
     ovpSpendAll:'Расходы всего', ovpNet:'ЧИСТАЯ ПРИБЫЛЬ', ovpNoPlace:'Общие',
     ovProfitNetSub:'за вычетом расходов', ovKarzNoRash:'расход исключён',
     clOld:'цифры старые',
-    opCard:'Операция', opEdit:'Правка', opDate:'Дата', opCancelBtn:'Отмена', opClient:'Клиент',
+    opCard:'Операция', opEdit:'Правка', opSum:'Сумма', opDate:'Дата', opCancelBtn:'Отмена', opClient:'Клиент',
     opOperator:'Оператор', opStatus:'Статус', opNote:'Комментарий', opExecutor:'Выполнил',
     dtToday:'Сегодня', dtYest:'Вчера', dtPick:'Дата', dtTime:'Время', dtClear:'Сбросить',
     edToWhom:'Кому', edPhone:'Телефон', edMemo:'Комментарий',
@@ -845,7 +858,7 @@
     ovpSpendAll:'Жами харажат', ovpNet:'СОФ ФОЙДА', ovpNoPlace:'Умумий',
     ovProfitNetSub:'харажат чиқарилган', ovKarzNoRash:'харажат чиқарилди',
     clOld:'рақамлар эски',
-    opCard:'Амал', opEdit:'Тўғрилаш', opDate:'Сана', opCancelBtn:'Бекор', opClient:'Мижоз',
+    opCard:'Амал', opEdit:'Тўғрилаш', opSum:'Сумма', opDate:'Сана', opCancelBtn:'Бекор', opClient:'Мижоз',
     opOperator:'Оператор', opStatus:'Ҳолат', opNote:'Изоҳ', opExecutor:'Бажарди',
     dtToday:'Бугун', dtYest:'Кеча', dtPick:'Сана', dtTime:'Вақт', dtClear:'Тозалаш',
     edToWhom:'Кимга', edPhone:'Телефон', edMemo:'Изоҳ',
@@ -3183,7 +3196,23 @@
       _ghLoaded=true;
     }).catch(function(){});
   }
-  function ghKeyCl_(name){ return 'cl:'+String(name||'').trim(); }   // ключ галочки клиента
+  // v35.4: КЛЮЧ ГАЛОЧКИ КЛИЕНТА. Не просто имя, а имя + время последней операции
+  // + сам остаток. Пришла новая операция или поменялся остаток — ключ стал другим,
+  // и галочка гаснет сама. Иначе она горела бы над цифрой, которую ты не проверял.
+  // Ключ считается одинаково на всех телефонах, поэтому отметка общая.
+  function ghLastTs_(name){
+    var nm=String(name||'').trim(), mx='';
+    if(_sbLive) for(var i=0;i<_sbLive.length;i++){
+      var r=_sbLive[i];
+      if((r.name||'').trim()!==nm) continue;
+      if((r.status||'').trim()==='отменён') continue;
+      var d=String(r.dt||''); if(d>mx) mx=d;
+    }
+    return mx.slice(0,19);
+  }
+  function ghKeyCl_(name, bal){
+    return 'cl:'+String(name||'').trim()+'|'+ghLastTs_(name)+'|'+Math.round(Number(bal||0));
+  }
 
   /* ================= v35.4: КАРТОЧКА ОПЕРАЦИИ =================
      Тап по строке в ленте, в общей истории или в отчёте клиента поднимает
@@ -3211,7 +3240,19 @@
     function L(k,v){ return '<div style="display:flex;justify-content:space-between;gap:14px;padding:6px 0;font-size:13px;">'+
       '<span style="color:var(--muted);flex:0 0 auto">'+esc(k)+'</span><span style="text-align:right;overflow-wrap:anywhere">'+v+'</span></div>'; }
     var day=_mskDay(r.dt);
-    var b=L(t('day'), day.slice(8,10)+'.'+day.slice(5,7)+'.'+day.slice(0,4)+' · '+_mskHM(r.dt));
+    // v35.5: остаток клиента прямо в карточке. В 35.4 тап админа отдали
+    // карточке операции, и быстрый просмотр остатка потерялся — возвращаем его
+    // сюда, чтобы один тап давал и операцию, и остаток.
+    var b='';
+    var _cn=(r.name||'').trim();
+    if(_cn && _cn!=='Обмен' && _cn!=='Остаток'){
+      var _cb=opClientBal_(_cn);
+      if(_cb!==null){
+        var _ccl=_cb>0?'plus':(_cb<0?'minus':''), _csg=_cb>0?'+':(_cb<0?'−':'');
+        b+=L(t('qbTitle'),'<b class="'+_ccl+'" style="font-size:15px">'+_csg+fmt(Math.abs(_cb))+' ₽</b>');
+      }
+    }
+    b+=L(t('day'), day.slice(8,10)+'.'+day.slice(5,7)+'.'+day.slice(0,4)+' · '+_mskHM(r.dt));
     b+=L(t('action'), esc(actName(r.action))+(r.place?' · '+esc(r.place):''));
     if(usd) b+=L(t('dollar'), cur(r.place)+fmt(Math.abs(usd))+(r.rate?' · '+t('rate')+' '+String(r.rate).replace('.',','):''));
     if(ri)  b+=L(t('ruble'), fmt(Math.abs(ri))+' ₽');
@@ -3226,7 +3267,11 @@
     var h='', nm=(r.name||'').trim();
     if(nm&&nm!=='Обмен'&&nm!=='Остаток') h+=btn('no','👤 '+t('opClient'),'opGoClient()');
     if(USER_ROLE==='admin'){
-      h+=btn('no','✎ '+t('opEdit'),'opDoEdit()');
+      h+=btn('no','✎ '+t('opNote'),'opDoEdit()');
+      // v35.5: правка СУММЫ. Это другой путь: операция отменяется и открывается
+      // форма ввода с подставленными полями — иначе нельзя, сумма тянет за собой
+      // FIFO, себестоимость и прибыль всей цепочки.
+      if(r.action==='Олдим'||r.action==='Бердим') h+=btn('no','💰 '+t('opSum'),'opDoEditFull()');
       h+=btn('no','📅 '+t('opDate'),'opDoDate()');
       h+=btn('no','✕ '+t('opCancelBtn'),'opDoCancel()');
     }
@@ -3235,8 +3280,160 @@
     document.getElementById('opWrap').classList.add('show');
   }
   function opClose(){ document.getElementById('opWrap').classList.remove('show'); }
+
+  /* ================= v35.5: РАСПРЕДЕЛЕНИЕ ПРИБЫЛИ =================
+     Считается прямо на телефоне из _sbLive — сеть не нужна, всё уже загружено.
+     Раздача делается обычными переводами через ту же saveTransfer, что и
+     ручной перевод. У каждого перевода ПОСТОЯННЫЙ номер, привязанный к месяцу:
+     нажал второй раз — база увидит знакомый id и ответит «уже записано»,
+     второго начисления не будет физически. */
+  var DS_MONTHS=['январь','февраль','март','апрель','май','июнь','июль',
+                 'август','сентябрь','октябрь','ноябрь','декабрь'];
+  var _dsPlan=null;
+  function dsInit(){
+    var d=document.getElementById('dsDate'); if(!d) return;
+    if(!d.value){                                   // по умолчанию — конец прошлого месяца
+      var t0=_todayMsk(), y=+t0.slice(0,4), m=+t0.slice(5,7);
+      var pm=(m===1)?12:(m-1), py=(m===1)?(y-1):y;
+      var last=new Date(Date.UTC(py, pm, 0)).getUTCDate();
+      d.value=py+'-'+(pm<10?'0':'')+pm+'-'+(last<10?'0':'')+last;
+    }
+    var j=document.getElementById('dsJabo'), i1=document.getElementById('dsInv1'), i2=document.getElementById('dsInv2');
+    if(j  && !j.value)  j.value =localStorage.getItem('k_ds_jabo')||'Касса Жабо';
+    if(i1 && !i1.value) i1.value=localStorage.getItem('k_ds_inv1')||'Сейид';
+    if(i2 && !i2.value) i2.value=localStorage.getItem('k_ds_inv2')||'Мухаммад';
+  }
+  // остаток клиента по строкам НЕ ПОЗЖЕ границы (для расхода закрытого месяца)
+  function dsBalTo_(name, upto){
+    if(!_sbLive) return 0;
+    var nm=String(name||'').trim(), b=0;
+    for(var i=0;i<_sbLive.length;i++){
+      var r=_sbLive[i];
+      if((r.status||'').trim()==='отменён') continue;
+      if((r.name||'').trim()!==nm) continue;
+      if(upto && _mskDay(r.dt)>upto) continue;
+      b+=Number(r.rub_itog||0);
+    }
+    return b;
+  }
+  function dsCalc(){
+    // v35.5: перед расчётом ОБЯЗАТЕЛЬНО перечитать базу. Кэш живёт 20 секунд,
+    // а тут делятся деньги — считать по снимку из памяти нельзя.
+    var btn=document.getElementById('dsCalcBtn');
+    btn.disabled=true; btn.textContent='Считаю…';
+    _sbTs=0;
+    sbFetchBase().then(function(){
+      btn.disabled=false; btn.textContent='Посчитать';
+      dsCalc_();
+    }).catch(function(){
+      btn.disabled=false; btn.textContent='Посчитать';
+      toast(t('connLost'),true);
+    });
+  }
+  function dsCalc_(){
+    var box=document.getElementById('dsResult');
+    document.getElementById('dsRunBtn').style.display='none';
+    _dsPlan=null;
+    var bnd=(document.getElementById('dsDate').value||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(bnd)){ toast('Укажите границу месяца',true); return; }
+    var jabo=(document.getElementById('dsJabo').value||'').trim();
+    var i1=(document.getElementById('dsInv1').value||'').trim();
+    var i2=(document.getElementById('dsInv2').value||'').trim();
+    if(!jabo||!i1){ toast('Заполните получателя половины и инвестора 1',true); return; }
+    localStorage.setItem('k_ds_jabo',jabo); localStorage.setItem('k_ds_inv1',i1);
+    localStorage.setItem('k_ds_inv2',i2);
+    if(!SB_ON||!_sbLive){ toast('Нужен режим Supabase',true); return; }
+
+    var mtag=bnd.slice(0,4)+bnd.slice(5,7);
+    var pname='Прибыль '+DS_MONTHS[(+bnd.slice(5,7))-1]+' '+bnd.slice(0,4);
+    var P=Math.round(dsBalTo_(pname,''));           // прибыль месяца — весь остаток клиента
+    if(!P){ box.style.display='block';
+      box.innerHTML='<div class="empty">Клиент «'+esc(pname)+'» не найден или его остаток 0. Месяц закрыт?</div>'; return; }
+
+    // расходы: каждый клиент «Расход…», но ТОЛЬКО строки до границы —
+    // чужой месяц в чужую прибыль попадать не должен
+    var rNames={}, i;
+    for(i=0;i<_sbLive.length;i++){
+      var nm=(_sbLive[i].name||'').trim();
+      if(nm.indexOf('Расход')===0) rNames[nm]=1;
+    }
+    var rash=[], Rtot=0;
+    for(var rn in rNames){
+      var rb=Math.round(dsBalTo_(rn,bnd));
+      if(rb<0){ rash.push({name:rn,sum:-rb}); Rtot+=-rb; }
+    }
+    var net=P-Rtot;
+    if(net<=0){ box.style.display='block';
+      box.innerHTML='<div class="empty">Чистая прибыль '+fmt(net)+' ₽ — распределять нечего.</div>'; return; }
+
+    var b1=Math.round(dsBalTo_(i1,'')), b2=i2?Math.round(dsBalTo_(i2,'')):0;
+    var tot=b1+b2;
+    if(tot<=0){ box.style.display='block';
+      box.innerHTML='<div class="empty">У инвесторов нулевые или отрицательные балансы — доли не посчитать.</div>'; return; }
+    var half=net/2;
+    var s1=Math.round(half*b1/tot), s2=i2?Math.round(half*b2/tot):0;
+    var sj=net-s1-s2;                               // остаток до рубля — кассе
+
+    var moves=[];
+    for(i=0;i<rash.length;i++)
+      moves.push({from:rash[i].name, sum:rash[i].sum, id:'tr_dist_'+mtag+'_r'+i, why:'гашение расхода'});
+    moves.push({from:i1, sum:s1, id:'tr_dist_'+mtag+'_i1', why:'доля '+(Math.round(b1/tot*10000)/100)+' %'});
+    if(i2) moves.push({from:i2, sum:s2, id:'tr_dist_'+mtag+'_i2', why:'доля '+(Math.round(b2/tot*10000)/100)+' %'});
+    moves.push({from:jabo, sum:sj, id:'tr_dist_'+mtag+'_j', why:'половина + остаток'});
+    _dsPlan={to:pname, moves:moves, net:net};
+
+    function row(a,b,cls){ return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line)"><span>'+a+'</span><span class="'+(cls||'')+'" style="white-space:nowrap;font-weight:700">'+b+'</span></div>'; }
+    var h='<div class="card" style="margin:0;padding:12px 14px;">';
+    h+=row('Прибыль · '+esc(pname), fmt(P)+' ₽','gold');
+    for(i=0;i<rash.length;i++) h+=row('− '+esc(rash[i].name)+' (до '+bnd+')', '−'+fmt(rash[i].sum)+' ₽','minus');
+    h+='<div style="display:flex;justify-content:space-between;padding:9px 0 4px;border-top:2px solid var(--line);font-weight:800;font-size:15px"><span>ЧИСТАЯ</span><span class="gold">'+fmt(net)+' ₽</span></div>';
+    h+='<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 0 2px">Кому</div>';
+    h+=row(esc(jabo)+' <span style="color:var(--muted);font-size:11px">половина + остаток</span>', fmt(sj)+' ₽','plus');
+    h+=row(esc(i1)+' <span style="color:var(--muted);font-size:11px">баланс '+fmt(b1)+' · '+(Math.round(b1/tot*10000)/100)+' %</span>', fmt(s1)+' ₽','plus');
+    if(i2) h+=row(esc(i2)+' <span style="color:var(--muted);font-size:11px">баланс '+fmt(b2)+' · '+(Math.round(b2/tot*10000)/100)+' %</span>', fmt(s2)+' ₽','plus');
+    var check=s1+s2+sj;
+    h+='<div style="display:flex;justify-content:space-between;padding:9px 0 0;border-top:1px solid var(--line);font-size:12px;color:var(--muted)"><span>сумма</span><span>'+fmt(check)+' ₽ '+(check===net?'✓ сходится':'❌ НЕ СХОДИТСЯ')+'</span></div>';
+    h+='<div style="font-size:12px;color:var(--muted);margin-top:10px">После распределения «'+esc(pname)+'» станет 0. Переводов будет '+moves.length+'.</div>';
+    h+='</div>';
+    box.style.display='block'; box.innerHTML=h;
+    if(check===net) document.getElementById('dsRunBtn').style.display='block';
+  }
+  function dsRun(){
+    if(!_dsPlan) return;
+    var pl=_dsPlan;
+    askConfirm('Распределить '+fmt(pl.net)+' ₽? Будет создано '+pl.moves.length+' переводов.', function(){
+      for(var i=0;i<pl.moves.length;i++){
+        var mv=pl.moves[i];
+        wqAdd('saveTransfer',{payload:{from:mv.from, to:pl.to, sum:mv.sum,
+              memo:mv.why, opDate:'', opTime:'', opId:mv.id}}, mv.from);
+      }
+      showOk('Распределение отправлено', pl.moves.length+' переводов');
+      document.getElementById('dsRunBtn').style.display='none';
+      _dsPlan=null;
+    });
+  }
+
   function opGoClient(){ var r=_opCur; opClose(); if(r&&r.name) openClient(r.name,'reports'); }
   function opDoEdit(){ var r=_opCur; opClose(); if(r) aFieldEdit({id:r.id,name:r.name,note:r.note}); }
+  // остаток клиента из уже загруженных живых строк — без единого запроса
+  function opClientBal_(name){
+    if(!_sbLive) return null;
+    var nm=String(name||'').trim(), b=0, seen=false;
+    for(var i=0;i<_sbLive.length;i++){
+      var r=_sbLive[i];
+      if((r.status||'').trim()==='отменён') continue;
+      if((r.name||'').trim()!==nm) continue;
+      b+=Number(r.rub_itog||0); seen=true;
+    }
+    return seen?b:null;
+  }
+  // полная правка (с суммой): тот же путь, что кнопка ↻ в меню правок
+  function opDoEditFull(){
+    var r=_opCur; opClose(); if(!r) return;
+    aEdit({ id:r.id, action:r.action, region:(r.place||''), name:(r.name||''),
+            usd:Number(r.usd||0), rub:Math.abs(Number(r.rub_itog||0)),
+            rate:r.rate, note:(r.note||''), status:r.status });
+  }
   function opDoCancel(){
     var r=_opCur; opClose(); if(!r) return;
     askConfirm(t('cancelQ'), function(){ doCancel(r.id, false, null); });
@@ -4000,7 +4197,7 @@
       var age=balAge_(it);
       var quiet=(!it.pseudo && age>=14 && age<9999)?(' · '+t('balQuiet')+' '+age):'';
       // v35.4: галочка «остаток сверил» — ключ cl:Имя, та же таблица admin_checks
-      var _ck=ghKeyCl_(it.name), _on=(USER_ROLE==='admin'&&_ghChecked[_ck]);
+      var _ck=ghKeyCl_(it.name, it.balance), _on=(USER_ROLE==='admin'&&_ghChecked[_ck]);
       var _bd=_on?'<span class="gh-badge">✓ '+t('checkedW')+'</span>':'';
       h+='<div class="op-item'+(_on?' gh-on':'')+'"'+clickAttr+'><div class="op-left"><div class="nm">'+dot+esc(it.name)+_bd+'</div><div class="mt">'+(it.last||'—')+' · '+it.count+' '+dealsW(it.count)+(it.pseudo?' · '+esc(it.sub||''):'')+quiet+'</div></div><div class="op-amt '+cls+'">'+sign+fmt(Math.abs(it.balance))+' ₽</div>'+(it.pseudo?'':ghChk_(_ck))+'</div>';
     });
@@ -4613,7 +4810,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35.4;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.5;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){
@@ -4994,6 +5191,7 @@
   sbEnsureUI();   // v23: кнопка «источник данных» — только admin
   _syncWriteMode();   // v33: сверить центральный режим записи (админ мог переключить)
   dtChipsInit();      // v35.4: кнопки Бугун/Кеча/Сана и поле времени
+  try{ dsInit(); }catch(e){}   // v35.5: карточка распределения прибыли
   checksLoad();       // v35.4: список галочек — один раз на вход
   wqPaint_(); wqKick_();   // v35.4: дослать то, что осталось с прошлого запуска
 

@@ -119,6 +119,9 @@
   .bal-prev:empty{margin-top:0;}
   .gh-chk{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:1.5px solid var(--line); color:transparent; font-size:14px; line-height:1; cursor:pointer; flex:0 0 auto; margin-left:10px; -webkit-tap-highlight-color:transparent;}
   .gh-chk.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .op-edit{flex:0 0 auto;width:26px;height:26px;border-radius:8px;border:1.5px solid var(--line);
+    background:var(--card2);color:var(--blue);font-size:14px;display:flex;align-items:center;
+    justify-content:center;cursor:pointer;margin-left:8px;}
   .dt-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
   .dt-chip{padding:7px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);
     font-size:13px;font-weight:700;cursor:pointer;color:var(--txt);user-select:none;}
@@ -464,7 +467,7 @@
     <div class="sub-tabs">
       <div class="sub-tab sel" id="stab-cancel" onclick="aTab('cancel')" data-i18n="subCancel">Отмена</div>
       <div class="sub-tab" id="stab-clients" onclick="aTab('clients')" data-i18n="subClients">Мижозлар</div>
-      <div class="sub-tab" id="stab-recalc" onclick="aTab('recalc')" data-i18n="subRecalc">Пересчёт</div>
+      <div class="sub-tab" id="stab-recalc" onclick="aTab('recalc')" data-i18n="subRecalc">Месяц и сервис</div>
     </div>
     <div id="aPane-cancel">
       <div class="card">
@@ -528,16 +531,12 @@
     </div>
     <div id="aPane-recalc" class="hidden">
       <div class="card">
-        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;" data-i18n="rcHint">Аварийная кнопка…</div>
-        <button class="submit" id="rcSubmit" onclick="rcSubmit()" data-i18n="rcBtn">Пересчитать всё</button>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">🔧 Аварийная пересборка FIFO <b>по листу</b>: заново считает прибыль всех строк, остатки и партии регионов, изменившиеся строки досылает в базу. Обычно не нужна — база пересобирает себя сама. Жать, только если после сбоя цифры разошлись.</div>
+        <button class="submit" id="rcSubmit" onclick="rcSubmit()">🔧 Пересобрать FIFO (аварийно)</button>
         <!-- v22: закрытые месяцы лежат в телефоне вечно и в сеть за ними не ходим.
              Нужно это сбросить только если прошлый месяц реально пересчитали. -->
         <div style="font-size:12px;color:var(--muted);margin:12px 0 6px;" data-i18n="archHint">Закрытые месяцы хранятся в телефоне и не перезапрашиваются. Сбросьте, если пересчитали прошлый месяц.</div>
         <button class="btn-cancel" style="width:100%;padding:13px;" onclick="dropArchives()" data-i18n="archDrop">Сбросить архивы</button>
-      </div>
-      <div class="card">
-        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;" data-i18n="rcmHint">Месячный пересчёт…</div>
-        <button class="submit purple" id="rcMonthSubmit" onclick="rcMonthSubmit()" data-i18n="rcmBtn">Пересчитать прибыль (месяц)</button>
       </div>
       <div class="card">
         <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;">📦 Закрытие месяца: детали периода → архив, базы регионов и долги клиентов сворачиваются, прибыль → псевдоклиент. НЕОБРАТИМО. Сначала превью — кнопка закрытия появится только при farq ДО = ПОСЛЕ.</div>
@@ -800,7 +799,7 @@
     transFrom:'С кого снять долг (станет кредитор +)', transTo:'На кого повесить (станет должник −)',
     doTransfer:'Выполнить перевод', transferDone:'Перевод выполнен', noTransfers:'Переводов нет',
     pickBoth:'Выберите клиентов', transferQ:'Выполнить перевод {f} → {t}?',
-    subCancel:'Отмена', subClients:'Клиенты', subRecalc:'Пересчёт',
+    subCancel:'Отмена', subClients:'Клиенты', subRecalc:'Месяц и сервис',
     filter:'Фильтр', reset:'Сброс', cancelHint:'«Отменить» — пометит отменённой, касса пересчитается.',
     cancelBtn:'Отменить', cancelQ:'Отменить эту операцию?', cancelled:'Отменено', noOpsFound:'Нет операций',
     fixBtn:'Исправить', fixQ:'Исправить операцию? Старая отменится, откроется форма с её данными.',
@@ -916,7 +915,7 @@
     transFrom:'Кимдан қарз олинади (Хакдор + бўлади)', transTo:'Кимга юкланади (Карздор − бўлади)',
     doTransfer:'Ўтказмани бажариш', transferDone:'Ўтказма бажарилди', noTransfers:'Ўтказма йўқ',
     pickBoth:'Мижозларни танланг', transferQ:'{f} → {t} ўтказма бажарилсинми?',
-    subCancel:'Бекор қилиш', subClients:'Мижозлар', subRecalc:'Пересчёт',
+    subCancel:'Бекор қилиш', subClients:'Мижозлар', subRecalc:'Ой ва сервис',
     filter:'Фильтр', reset:'Тозалаш', cancelHint:'«Бекор» — бекор деб белгилайди, касса қайта ҳисобланади.',
     cancelBtn:'Бекор', cancelQ:'Бу амал бекор қилинсинми?', cancelled:'Бекор қилинди', noOpsFound:'Амал йўқ',
     fixBtn:'Тузатиш', fixQ:'Амал тузатилсинми? Эскиси бекор бўлади, форма унинг маълумотлари билан очилади.',
@@ -1537,13 +1536,14 @@
     if(r.executor)m.push('✅ '+r.executor);
     if(r.operator)m.push(r.operator);                 // v33: кто создал операцию
     var nm=(r.name||'');
-    // v35.4: админу тап открывает карточку операции (правка/дата/отмена из любого
-    // места), оператору — как раньше, карточку клиента.
-    var tap=(USER_ROLE==='admin'&&r.id)?(' style="cursor:pointer" onclick="opCardById(\''+String(r.id).replace(/'/g,"")+'\')"')
-           :((nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'');
+    // v35.5: тап по строке — как и раньше, карточка клиента. Карточка операции
+    // переехала на иконку ✎ справа, чтобы не отнимать привычное действие.
+    var tap=(nm&&nm!=='Обмен'&&nm!=='Остаток')?feedClick(nm,'reports'):'';
+    var opBtn=(USER_ROLE==='admin'&&r.id)
+      ? '<span class="op-edit" onclick="event.stopPropagation();opCardById(\''+String(r.id).replace(/'/g,"")+'\')">✎</span>' : '';
     var noteLine=(r.note&&String(r.note).trim())     // v33: комментарий серой строкой снизу
       ?'<div class="mt" style="opacity:.8;margin-top:1px">'+esc(String(r.note))+'</div>':'';
-    return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div>'+noteLine+'</div><div class="op-amt '+col+'">'+sum+'</div></div>';
+    return '<div class="op-item"'+tap+'><div class="op-left"><div class="nm">'+esc(nm)+'</div><div class="mt">'+m.join(' · ')+'</div>'+noteLine+'</div><div class="op-amt '+col+'">'+sum+'</div>'+opBtn+'</div>';
   }
   // ---- ОЙЛИК из Supabase (копия getMonthlyReport, текущий месяц — из live) ----
   function sbComputeMonthly(place, monthKey, rowsSrc){   // v34: rowsSrc — архив прошлого месяца; иначе live
@@ -3095,16 +3095,8 @@
     });
   }
 
-  function rcMonthSubmit(){
-    askConfirm(t('rcmQ'), function(){
-      var btn=document.getElementById('rcMonthSubmit'); btn.disabled=true; btn.textContent='…';
-      apiCall('recalcMonthlyProfit',{},AUTH_TOKEN).then(function(res){
-        btn.disabled=false; btn.textContent=t('rcmBtn');
-        if(res.ok) showOk(t('rcDone'), t('rcmDone',{c:(res.changed||0)}));
-        else toast(res.error||t('err'),true);
-      }).catch(function(){btn.disabled=false; btn.textContent=t('rcmBtn'); toast(t('connLost'),true);});
-    });
-  }
+  // v35.5: rcMonthSubmit убран — он вызывал ту же fifoRebuild_(true),
+  // что и «Пересобрать FIFO». Две кнопки делали буквально одно и то же.
   /* ===== СВЕРКА КЛИЕНТОВ (Операции <-> База) ===== */
   function csRun(){
     var btn=document.getElementById('csBtn'); btn.disabled=true; btn.textContent=t('csWait');
@@ -3610,10 +3602,11 @@
         if(r.rate&&Number(r.rate))m.push(t('rate')+' '+String(r.rate).replace('.',','));
         if(Number(r.profit))m.push(t('profitWord')+' '+fmt(r.profit));
         if(r.executor)m.push('✅ '+r.executor);
-        var tap=(USER_ROLE==='admin'&&r.id)?(' style="cursor:pointer" onclick="opCardById(\''+String(r.id).replace(/'/g,"")+'\')"')
-               :((r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'');
+        var tap=(r.name&&r.name!=='Обмен'&&r.name!=='Остаток')?feedClick(r.name,'reports'):'';
+        var opB=(USER_ROLE==='admin'&&r.id)
+          ? '<span class="op-edit" onclick="event.stopPropagation();opCardById(\''+String(r.id).replace(/'/g,"")+'\')">✎</span>' : '';
         var on=_ghChecked[r.id], badge=on?'<span class="gh-badge">✓ проверено</span>':'';
-        return '<div class="op-item'+(on?' gh-on':'')+'"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+badge+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div>'+ghChk_(r.id)+'</div>';
+        return '<div class="op-item'+(on?' gh-on':'')+'"'+tap+'><div class="op-left"><div class="nm">'+esc(r.name||'')+badge+'</div><div class="mt">'+m.join(' · ')+'</div></div><div class="op-amt '+col+'">'+sum+'</div>'+opB+ghChk_(r.id)+'</div>';
       }).join('');
       h+='<div style="font-size:11px;color:var(--gold);text-align:right;padding:4px 4px 8px;border-bottom:1px dashed var(--line);margin-bottom:6px;">'+t('earnedDay')+': '+fmt(prof)+' ₽</div>';
     });
@@ -4473,11 +4466,13 @@
       var rb=runBal[idx];
       var rbCls=rb>0?'plus':(rb<0?'minus':'');
       var noteLine=it.note?'<div class="mt" style="color:var(--muted);">'+esc(it.note)+'</div>':'';
-      // v35.4: галочка «проверено» у каждой строки отчёта + карточка операции по тапу (админ)
+      // v35.5: ТАП ПО СТРОКЕ — снова накопительный остаток, как было до 35.4.
+      // В 35.4 я отдал тап карточке операции и сломал то, ради чего сюда и
+      // заходят. Карточка теперь на отдельной иконке ✎ справа, у админа.
       var _on=(USER_ROLE==='admin'&&it.id&&_ghChecked[it.id]);
-      var _tapC=(USER_ROLE==='admin'&&it.id)?(' onclick="opCardById(\''+String(it.id).replace(/'/g,"")+'\')"')
-                                            :' onclick="clToggleBal(this)"';
-      h+='<div class="op-item'+(_on?' gh-on':'')+'" style="cursor:pointer;flex-wrap:wrap;"'+_tapC+'><div class="op-left"><div class="nm">'+title+(_on?'<span class="gh-badge">✓ '+t('checkedW')+'</span>':'')+'</div><div class="mt">'+it.datetime+'</div>'+noteLine+'</div><div class="op-amt '+cls+'">'+amtMain+(amtSub?'<span class="sub">'+amtSub+'</span>':'')+'</div>'+(it.id?ghChk_(it.id):'')+
+      var _opBtn=(USER_ROLE==='admin'&&it.id)
+        ? '<span class="op-edit" onclick="event.stopPropagation();opCardById(\''+String(it.id).replace(/'/g,"")+'\')">✎</span>' : '';
+      h+='<div class="op-item'+(_on?' gh-on':'')+'" style="cursor:pointer;flex-wrap:wrap;" onclick="clToggleBal(this)"><div class="op-left"><div class="nm">'+title+(_on?'<span class="gh-badge">✓ '+t('checkedW')+'</span>':'')+'</div><div class="mt">'+it.datetime+'</div>'+noteLine+'</div><div class="op-amt '+cls+'">'+amtMain+(amtSub?'<span class="sub">'+amtSub+'</span>':'')+'</div>'+_opBtn+(it.id?ghChk_(it.id):'')+
          '<div class="cl-runbal hidden" style="flex-basis:100%;font-size:12px;color:var(--gold);padding-top:6px;">'+t('balAfter')+': <b class="'+rbCls+'" style="color:inherit;">'+(rb>0?'+':rb<0?'−':'')+fmt(Math.abs(rb))+' ₽</b></div></div>';
     });
     box.innerHTML=h;
@@ -4810,7 +4805,7 @@
   }
 
   /* ===== ВЕРСИЯ ПРИЛОЖЕНИЯ + ПЛАШКА ОБНОВЛЕНИЯ ===== */
-  var APP_VERSION = 35.5;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
+  var APP_VERSION = 35.6;   // ← поднимать ВМЕСТЕ с version.json. ТОЛЬКО ВВЕРХ:
                           // телефон ждёт version.json БОЛЬШЕ своего номера,
                           // понижение навсегда убивает баннер обновления.
   (function(){

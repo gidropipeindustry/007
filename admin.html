@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="ru"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Касса 007 · Доступ операторов</title>
+<title>Касса 007 · Админ-панель</title>
 <style>
 :root{--bg:#0f1115;--card:#1a1d24;--line:#2a2e38;--txt:#e7e9ee;--mut:#8b919c;--plus:#3ddc84;--minus:#ff6b6b;--acc:#4a9eff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;padding:12px;max-width:560px;margin:auto}
@@ -14,8 +14,23 @@ button.sec{background:#333844}button.warn{background:#5a2a2a}
 .pill{font-size:11px;padding:2px 7px;border-radius:20px}.on{background:rgba(61,220,132,.15);color:var(--plus)}.off{background:rgba(255,107,107,.15);color:var(--minus)}
 .mut{color:var(--mut);font-size:12px}.err{color:var(--minus)}.ok{color:var(--plus)}
 .rowbtn{display:flex;gap:6px}.rowbtn button{margin:0;padding:7px;font-size:13px}
+.sysgrp{font-size:12px;color:var(--mut);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+.sysgrp:first-child{margin-top:0}
+.sysb{width:100%;text-align:left;margin:0 0 6px;padding:10px 12px;border-radius:10px;
+  background:#12151b;border:1px solid var(--line);color:var(--txt);font-size:14px;font-weight:600;cursor:pointer}
+.sysb:hover{border-color:var(--acc)}
+.sysb.warn{border-color:#5a3a2a}
+.sysb .d{display:block;font-weight:400;font-size:12px;color:var(--mut);margin-top:3px;line-height:1.35}
+.sysb:disabled{opacity:.5;cursor:default}
+#sysOut{white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;
+  background:#0c0e12;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;
+  max-height:46vh;overflow:auto;color:#cfd4dd}
+#sysOut:empty{display:none}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;margin:0;padding:9px;background:#12151b;border:1px solid var(--line);color:var(--mut);font-size:14px}
+.tabs button.sel{background:var(--acc);color:#fff;border-color:var(--acc)}
 </style></head><body>
-<h2>Доступ операторов</h2>
+<h2>Админ-панель</h2>
 
 <div class="card" id="loginCard">
   <label>Логин администратора</label><input id="lg" autocomplete="username">
@@ -31,6 +46,21 @@ button.sec{background:#333844}button.warn{background:#5a2a2a}
       <button class="sec" style="width:auto;margin:0;padding:6px 12px" onclick="logout()">Выйти</button>
     </div>
   </div>
+  <div class="tabs">
+    <button id="tab-serv" class="sel" onclick="tab('serv')">Сервис</button>
+    <button id="tab-users" onclick="tab('users')">Операторы</button>
+  </div>
+
+  <div id="scr-serv">
+    <div class="card">
+      <div class="mut">🛠 Служебные функции — запуск без редактора Apps Script</div>
+      <div id="sysBox" style="margin-top:10px"><div class="mut">Загружаю список…</div></div>
+      <button class="sec" onclick="sysHist()">История запусков</button>
+      <pre id="sysOut"></pre>
+    </div>
+  </div>
+
+  <div id="scr-users" style="display:none">
   <div class="card">
     <div class="mut">🔀 Режим записи — для ВСЕХ устройств</div>
     <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
@@ -57,12 +87,60 @@ button.sec{background:#333844}button.warn{background:#5a2a2a}
     <button class="sec" onclick="resetForm()">Очистить форму</button>
     <div id="saveMsg" style="margin-top:8px"></div>
   </div>
+  </div>
 </div>
 
 <script>
 const SB='https://bmnqmjuotpwwjejzefed.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtbnFtanVvdHB3d2planplZmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODU2OTgsImV4cCI6MjEwMTg2MTY5OH0.j7i4oijXHdtfhSZOp4SuKMYlg9pTLwvWvd3r1yS4Nag';
 let TOKEN='';
+// Служебные функции живут в Apps Script, а не в базе — поэтому у панели
+// два собеседника. Адрес тот же, что у приложения; менять его нельзя,
+// иначе отвалятся и лайки, и вебхуки.
+const API='https://script.google.com/macros/s/AKfycbw9xLU2d0_38dbVl2v7afk2CKn0JaJcVbPICYFtqJzYEBUbuxVPICqf5P-71Pn2KGRGCA/exec';
+async function api(action,args){
+  try{
+    var r=await fetch(API,{method:'POST',body:JSON.stringify({action:action,token:TOKEN,args:args||{}})});
+    return await r.json();
+  }catch(e){ return {ok:false,error:'нет связи с Apps Script'}; }
+}
+function tab(w){
+  document.getElementById('scr-serv').style.display = (w==='serv')?'':'none';
+  document.getElementById('scr-users').style.display= (w==='users')?'':'none';
+  document.getElementById('tab-serv').className = (w==='serv')?'sel':'';
+  document.getElementById('tab-users').className= (w==='users')?'sel':'';
+}
+// --- служебные функции ---
+var SYS=[];
+async function sysLoad(){
+  var r=await api('sysList');
+  if(!r||!r.ok){ $('sysBox').innerHTML='<div class="err">'+((r&&r.error)||'не загрузилось')+'</div>'; return; }
+  SYS=r.items||[];
+  var h='', g='';
+  SYS.forEach(function(x){
+    if(x.g!==g){ g=x.g; h+='<div class="sysgrp">'+(g==='read'?'Только чтение — жать можно всегда':'С подтверждением — меняют состояние')+'</div>'; }
+    h+='<button class="sysb'+(x.g==='warn'?' warn':'')+'" onclick="sysRun(\''+x.n+'\')">'+
+       x.t+'<span class="d">'+x.d+'</span></button>';
+  });
+  $('sysBox').innerHTML=h;
+}
+async function sysRun(name){
+  var it=null; SYS.forEach(function(x){ if(x.n===name) it=x; });
+  if(!it) return;
+  if(it.g==='warn' && !confirm(it.t+'\n\n'+it.d+'\n\nЗапустить?')) return;
+  var out=$('sysOut');
+  out.textContent='⏳ '+it.t+'…';
+  var r=await api('sysRun',{name:name});
+  if(!r){ out.textContent='нет ответа'; return; }
+  var шапка=(r.ok?'✅ ':'❌ ')+(r.title||name)+'  ·  '+(r['мс']!==undefined?r['мс']+' мс':'')+'\n'+
+            '────────────────────────\n';
+  out.textContent=шапка+(r.log||r.error||'пусто');
+  out.scrollTop=0;
+}
+async function sysHist(){
+  var r=await api('sysHistory');
+  $('sysOut').textContent='История запусков\n────────────────────────\n'+((r&&r.log)||(r&&r.error)||'пусто');
+}
 function $(x){return document.getElementById(x);}
 async function makeToken(lg,pw){
   var iss=new Date(Date.now()+108e5).toISOString().slice(0,10).replace(/-/g,'');
@@ -82,7 +160,7 @@ async function login(){
   if(!r||r.error||r.ok===false){$('lgErr').textContent=(r&&r.error)||'Неверный логин/пароль или не админ';return;}
   TOKEN=t;$('who').textContent=$('lg').value.trim();
   $('loginCard').style.display='none';$('panel').style.display='block';
-  render(r.users); loadMode();
+  render(r.users); loadMode(); sysLoad();
 }
 var CURMODE='apps';
 async function loadMode(){
